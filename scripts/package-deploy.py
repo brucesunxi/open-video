@@ -5,7 +5,7 @@ import tarfile
 root = Path(__file__).resolve().parents[1]
 out = root / 'dist-deploy'
 out.mkdir(exist_ok=True)
-files = ['server', 'web', 'gpu', 'scripts', 'deploy', 'docs', 'tests', 'README.md',
+files = ['server', 'web', 'gpu', 'scripts', 'deploy', 'docs', 'lessons', 'tests', 'README.md',
          'pyproject.toml', 'uv.lock', 'package.json', 'package-lock.json', 'tsconfig.json',
          'vite.config.ts', 'index.html', '.env.example', 'Dockerfile', 'compose.yaml', '.dockerignore']
 with tarfile.open(out / 'teacher-studio-source.tar.gz', 'w:gz') as archive:
