@@ -529,6 +529,13 @@ def create_app(data_dir=None):
             'X-Media-Cache': 'hit' if hit else 'miss',
             'Server-Timing': f'media;dur={(time.perf_counter()-started)*1000:.1f}'})
 
+    @app.post('/api/courses/{course_id}/media-status')
+    def course_media_status(course_id: str, body: CourseMediaPlan):
+        course = need('course', course_id)
+        teacher = need('teacher', course['teacher_id'])
+        signature = hashlib.sha256(json.dumps([course_id, body.chunks, teacher['voice_profile_id'], teacher['avatar_asset_id'], os.getenv('MEDIA_CACHE_VERSION','1')]).encode()).hexdigest()
+        return next((j for j in store.list('media_job') if j.get('signature') == signature), None)
+
     @app.post('/api/courses/{course_id}/prepare-media')
     async def prepare_course_media(course_id: str, body: CourseMediaPlan):
         course = need('course', course_id)

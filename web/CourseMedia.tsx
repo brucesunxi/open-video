@@ -7,9 +7,9 @@ export function CourseMedia({course,teacher}:{course:Course;teacher:Teacher}){
  const [job,setJob]=useState<Job|null>(null),[error,setError]=useState(''),[starting,setStarting]=useState(false);
  useEffect(()=>{
   let cancelled=false,timer:ReturnType<typeof setTimeout>;
-  const id=localStorage.getItem(key);
-  const poll=async()=>{if(!id)return;try{const next=await api<Job>(`/media-jobs/${id}`);if(cancelled)return;setJob(next);if(['queued','preparing'].includes(next.status))timer=setTimeout(poll,2500);}catch{if(!cancelled)setError('准备状态暂时无法获取，请稍后重新检查。');}};
-  void poll();return()=>{cancelled=true;clearTimeout(timer);};
+  const poll=async(id:string)=>{try{const next=await api<Job>(`/media-jobs/${id}`);if(cancelled)return;setJob(next);if(['queued','preparing'].includes(next.status))timer=setTimeout(()=>void poll(id),2500);}catch{if(!cancelled)setError('准备状态暂时无法获取，请稍后重新检查。');}};
+  void post<Job|null>(`/courses/${course.id}/media-status`,{chunks:course.slides.map(s=>speechChunks(s.narration,true))}).then(next=>{if(cancelled)return;setJob(next);if(next&&['queued','preparing'].includes(next.status))timer=setTimeout(()=>void poll(next.id),2500);}).catch(()=>{if(!cancelled)setError('准备状态暂时无法获取。');});
+  return()=>{cancelled=true;clearTimeout(timer);};
  },[key,job?.id]);
  const start=async()=>{setStarting(true);setError('');try{const next=await post<Job>(`/courses/${course.id}/prepare-media`,{chunks:course.slides.map(s=>speechChunks(s.narration,true))});localStorage.setItem(key,next.id);setJob(next);}catch(e){setError((e as Error).message);}finally{setStarting(false);}};
  const running=starting||Boolean(job&&['queued','preparing'].includes(job.status));
