@@ -52,7 +52,10 @@ function App(){
   }
   async function bootstrap(){
     const [t,c]=await Promise.all([api<Teacher[]>('/teachers'),api<Config>('/config')]);setTeachers(t);setConfig(c);
-    const saved=localStorage.getItem('teacherId');setTeacherId(t.find(x=>x.id===saved)?.id||t[0]?.id||'');
+    const saved=localStorage.getItem('teacherId');
+    const defaultTeacher=t.find(x=>x.name.startsWith('数学老师'));
+    // Open the classroom with the requested default; keep manual changes within this visit.
+    setTeacherId((!teacherId?defaultTeacher?.id:undefined)||t.find(x=>x.id===saved)?.id||defaultTeacher?.id||t[0]?.id||'');
   }
   useEffect(()=>{api('/auth').then(v=>{setAuthMode(v.mode||'password');setAuthorized(v.authorized);}).catch(report);return()=>{speaker.current.stop();media.current?.getTracks().forEach(t=>t.stop());};},[]);
   useEffect(()=>{if(authorized)void run(bootstrap);},[authorized]);
