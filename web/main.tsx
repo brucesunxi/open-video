@@ -4,6 +4,7 @@ import {BookOpen,GraduationCap,Library,Presentation,Settings2,Plus,ArrowUpRight,
 import {api,post,type Teacher,type Knowledge,type Course,type Session,type Asset,type Config,type Source} from './types';
 import {Avatar} from './Avatar';
 import {Speaker} from './speech';
+import {CourseMedia} from './CourseMedia';
 import {Realtime} from './Realtime';
 import {TeacherMaterials} from './TeacherMaterials';
 import './style.css';
@@ -130,6 +131,7 @@ function App(){
         {page==='classroom'&&teacher&&<div className="class-mode"><button className={classMode==='lesson'?'primary':''} onClick={()=>setClassMode('lesson')}>讲课与插问</button><button className={classMode==='realtime'?'primary':''} onClick={()=>{void pause().catch(report);setClassMode('realtime');}}>实时对话</button></div>}
         {page==='classroom'&&teacher&&classMode==='realtime'&&<Realtime key={teacher.id} teacher={teacher} avatar={avatar} config={config}/>}
         {page==='classroom'&&teacher&&classMode==='lesson'&&<>
+          {course&&<CourseMedia key={`${course.id}:${teacher.voice_profile_id}:${teacher.avatar_asset_id}`} course={course} teacher={teacher}/>}
           <div className="class-toolbar"><div className="select-course"><Presentation size={18}/><select aria-label="选择课堂课程" value={courseId} disabled={busy} onChange={e=>{stop();const old=current.current;if(old&&old.state!=='FINISHED')void perform('pause',old).catch(report);setSession(null);current.current=null;setCourseId(e.target.value);}}><option value="">自由问答 · 全部已审核资料</option>{courses.filter(c=>c.status==='published').map(c=><option key={c.id} value={c.id}>{c.title} · v{c.version}</option>)}</select></div><span className="subtle">{course?.slides.length||0} 页课件</span><div className="spacer"/><select className="voice-select" aria-label="声音模式" value={voice} onChange={e=>{void pause().catch(report);setVoice(e.target.value);}}><option value="browser">浏览器演示声音</option><option value="silent">静音阅读</option><option value="gpu" disabled={!config?.tts.configured}>老师克隆声音{!config?.tts.configured?' · 待连接':''}</option></select></div>
           <div className="class-grid"><section className="stage-column"><div className="stage panel"><div className="stage-top"><span><span className={`status-dot ${speaking?'pulse':''}`}/>{preparingSpeech?'正在生成老师声音与画面':session?labels[session.state]:'课堂准备中'}</span><span className="pill pale"><ShieldCheck size={13}/>知识库限定</span></div>
             <div className="teaching-scene"><div className="presenter"><Avatar video={video} url={avatar?.url} kind={avatar?.kind} speaking={speaking} gesture={session?.state==='ANSWERING'?'think':slide?.gesture||'idle'}/><div className="presenter-name">{teacher.name}<small>{teacher.subject||'教师'}</small></div></div>

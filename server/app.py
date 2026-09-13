@@ -21,6 +21,7 @@ from pydantic import BaseModel, Field
 
 from .store import Store, ident, now
 from .knowledge import parse_document, chunk_pages, retrieve
+from .media_cache import MediaCache
 from . import providers
 from . import auth as authentication
 
@@ -91,6 +92,10 @@ class SpeechStream(BaseModel):
     animate: bool = True
 
 
+class CourseMediaPlan(BaseModel):
+    chunks: list[list[str]] = Field(min_length=1, max_length=30)
+
+
 class VoiceRegistration(BaseModel):
     asset_id: str
     transcript: str = Field(min_length=1, max_length=2000)
@@ -99,14 +104,24 @@ class VoiceRegistration(BaseModel):
 def create_app(data_dir=None):
     store = Store(Path(data_dir or os.getenv('DATA_DIR', str(ROOT / 'data'))))
 
+    media_cache = MediaCache(store.root)
+    media_tasks = set()
+
     @asynccontextmanager
     async def lifespan(app):
+        for job in store.list('media_job'):
+            if job['status'] in ('preparing', 'queued'):
+                job.update(status='interrupted', message='服务重启，点击重新准备可复用已完成片段。')
+                store.put('media_job', job)
         # A process restart must never resume old audio / in-flight generation by itself.
         for s in store.list('session'):
             if s['state'] not in ('FINISHED', 'READY', 'PAUSED'):
                 s.update(state='PAUSED', revision=s['revision'] + 1, updated_at=now())
                 store.put('session', s)
         yield
+        for task in media_tasks:
+            task.cancel()
+        await asyncio.gather(*media_tasks, return_exceptions=True)
 
     app = FastAPI(title='知课 Teacher Studio', version='0.1.0', lifespan=lifespan)
     app.state.store = store
@@ -489,9 +504,7 @@ def create_app(data_dir=None):
             raise HTTPException(400, '尚未确认声音使用授权。')
         if not teacher['voice_profile_id']:
             raise HTTPException(400, '请先设置 GPU 服务返回的 voice_profile_id。')
-        started = time.perf_counter()
-        content, mime = await providers.synthesize(body.text, teacher)
-        voice_ready = time.perf_counter()
+        image = None
         if body.animate and os.getenv('AVATAR_BASE_URL') and teacher.get('avatar_asset_id'):
             asset = need('asset', teacher['avatar_asset_id'])
             if asset['teacher_id'] != teacher['id']:
@@ -500,10 +513,69 @@ def create_app(data_dir=None):
                 image_path = store.root / 'assets' / asset['stored_name']
                 if image_path.stat().st_size > 15 * 1024 * 1024:
                     raise HTTPException(413, '动画参考图片最多 15MB。')
-                content, mime = await providers.animate(image_path.read_bytes(), content)
-        finished = time.perf_counter()
-        return Response(content, media_type=mime, headers={'Server-Timing':
-            f'tts;dur={(voice_ready-started)*1000:.1f}, avatar;dur={(finished-voice_ready)*1000:.1f}'})
+                image = image_path.read_bytes()
+        identity = {'version': os.getenv('MEDIA_CACHE_VERSION', '1'), 'teacher': teacher['id'],
+                    'voice': teacher['voice_profile_id'], 'text': body.text,
+                    'image': hashlib.sha256(image).hexdigest() if image else '',
+                    'tts': os.getenv('TTS_BASE_URL'), 'avatar': os.getenv('AVATAR_BASE_URL') if image else ''}
+        async def produce():
+            content, mime = await providers.synthesize(body.text, teacher)
+            if image:
+                content, mime = await providers.animate(image, content)
+            return content, mime
+        started = time.perf_counter()
+        content, mime, hit = await media_cache.get(identity, produce)
+        return Response(content, media_type=mime, headers={
+            'X-Media-Cache': 'hit' if hit else 'miss',
+            'Server-Timing': f'media;dur={(time.perf_counter()-started)*1000:.1f}'})
+
+    @app.post('/api/courses/{course_id}/prepare-media')
+    async def prepare_course_media(course_id: str, body: CourseMediaPlan):
+        course = need('course', course_id)
+        teacher = need('teacher', course['teacher_id'])
+        if not teacher.get('consent') or not teacher.get('voice_profile_id') or not teacher.get('avatar_asset_id') or not os.getenv('AVATAR_BASE_URL'):
+            raise HTTPException(400, '请先配置并授权老师音色与动画形象。')
+        if course['status'] != 'published' or len(body.chunks) != len(course['slides']):
+            raise HTTPException(400, '请先发布课程。')
+        for chunks, slide in zip(body.chunks, course['slides']):
+            if not chunks or len(chunks)>200 or any(not c.strip() or len(c)>200 for c in chunks) or ''.join(chunks).strip()!=slide['narration'].strip():
+                raise HTTPException(400, '准备内容必须与课程讲稿一致。')
+        signature = hashlib.sha256(json.dumps([course_id, body.chunks, teacher['voice_profile_id'], teacher['avatar_asset_id'], os.getenv('MEDIA_CACHE_VERSION','1')]).encode()).hexdigest()
+        existing = next((j for j in store.list('media_job') if j.get('signature')==signature and j['status'] in ('queued','preparing')), None)
+        if existing: return existing
+        job = {'id': ident('media'), 'teacher_id': teacher['id'], 'course_id': course_id,
+               'signature': signature, 'status': 'queued', 'completed': 0,
+               'total': sum(map(len,body.chunks)), 'page': 1, 'message': '等待准备', 'created_at': now()}
+        store.put('media_job',job)
+        async def prepare():
+            try:
+                job.update(status='preparing',message='正在生成老师声音与动画')
+                store.put('media_job',job)
+                for page, chunks in enumerate(body.chunks,1):
+                    for text in chunks:
+                        latest=need('teacher',teacher['id'])
+                        if any(latest.get(k)!=teacher.get(k) for k in ('voice_profile_id','avatar_asset_id')):
+                            raise ValueError('老师素材已更换，请重新准备。')
+                        result=await speech(Speech(teacher_id=teacher['id'],text=text,animate=True))
+                        if not result.media_type.startswith('video/'):
+                            raise ValueError('未生成动画，请检查所选形象。')
+                        job.update(completed=job['completed']+1,page=page)
+                        store.put('media_job',job)
+                        await asyncio.sleep(.1)
+                job.update(status='ready',message='整课动画已缓存，可以开始讲课')
+            except asyncio.CancelledError:
+                job.update(status='interrupted',message='准备已中断，可重新准备并复用已完成片段。')
+                raise
+            except Exception:
+                job.update(status='failed',message='准备未完成，请检查模型服务后重试；已完成片段会保留。')
+            finally:
+                store.put('media_job',job)
+        task=asyncio.create_task(prepare());media_tasks.add(task);task.add_done_callback(media_tasks.discard)
+        return job
+
+    @app.get('/api/media-jobs/{job_id}')
+    def course_media_job(job_id: str):
+        return need('media_job', job_id)
 
     @app.post('/api/teachers/{teacher_id}/prepare-avatar')
     async def prepare_avatar(teacher_id: str):

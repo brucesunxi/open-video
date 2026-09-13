@@ -221,7 +221,10 @@ def test_animated_speech_and_audio_preview(client, monkeypatch):
     video=client.post('/api/speech',json={**body,'animate':True})
     assert video.headers['content-type']=='video/mp4' and video.content==b'movie'
     assert calls==[(b'image',b'wave')]
-    assert 'tts;dur=' in video.headers['server-timing']
+    assert 'media;dur=' in video.headers['server-timing']
+    cached=client.post('/api/speech',json={**body,'animate':True})
+    assert cached.headers['x-media-cache']=='hit' and cached.content==b'movie'
+    assert len(calls)==1
     client.put(f"/api/teachers/{t['id']}",json={**t,'consent':False})
     assert client.post('/api/speech',json={**body,'animate':True}).status_code==400
 
@@ -256,7 +259,7 @@ def test_speech_stream_order_and_midstream_error(client,monkeypatch):
     calls.clear()
     r=client.post('/api/speech/stream',json={**body,'chunks':['第一句','失败','不应生成']})
     events=[json.loads(line[6:]) for line in r.text.splitlines() if line.startswith('data: ')]
-    assert calls==['第一句','失败'] and 'error' in events[-1]
+    assert calls==['失败'] and 'error' in events[-1]  # First sentence is served from cache.
     assert 'internal model error' not in r.text
     assert client.post('/api/speech/stream',json={**body,'chunks':[' ']}).status_code==400
     client.put(f"/api/teachers/{t['id']}",json={**t,'voice_profile_id':'voice','consent':False})
@@ -267,3 +270,29 @@ def test_stream_accepts_full_length_slide_segments():
     from server.app import SpeechStream
     body=SpeechStream(teacher_id='teacher',chunks=['教'*10]*200)
     assert sum(map(len,body.chunks))==2000
+
+
+def test_prepare_course_media_matches_course_and_reuses_cache(client, monkeypatch):
+    import time
+    t,c=demo(client)
+    image=client.post(f"/api/teachers/{t['id']}/assets",data={'kind':'image'},files={'file':('portrait.jpg',b'image','image/jpeg')}).json()
+    client.put(f"/api/teachers/{t['id']}",json={**t,'voice_profile_id':'voice','avatar_asset_id':image['id']})
+    monkeypatch.setenv('AVATAR_BASE_URL','http://localhost:8040')
+    calls=[]
+    async def synth(text,teacher):calls.append(text);return b'wave','audio/wav'
+    async def animate(image,audio):return b'movie','video/mp4'
+    monkeypatch.setattr(providers,'synthesize',synth)
+    monkeypatch.setattr(providers,'animate',animate)
+    endpoint=f"/api/courses/{c['id']}/prepare-media"
+    assert client.post(endpoint,json={'chunks':[['unrelated']]}).status_code==400
+    plan={'chunks':[[s['narration']] for s in c['slides']]}
+    job=client.post(endpoint,json=plan).json()
+    for _ in range(100):
+        status=client.get('/api/media-jobs/'+job['id']).json()
+        if status['status'] not in ('queued','preparing'):break
+        time.sleep(.02)
+    assert status['status']=='ready',status
+    assert status['completed']==len(c['slides'])
+    count=len(calls)
+    r=client.post('/api/speech',json={'teacher_id':t['id'],'text':c['slides'][0]['narration'],'animate':True})
+    assert r.headers['x-media-cache']=='hit' and len(calls)==count
