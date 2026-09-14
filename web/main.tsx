@@ -184,6 +184,7 @@ function App(){
               <button className="primary play-button" disabled={(!course||busy)&&session?.state!=='ANSWERING'&&session?.state!=='LECTURING'} onClick={()=>void run(async()=>{if(speaking||session?.state==='LECTURING'||session?.state==='ANSWERING')await pause();else await start();})}>{speaking||session?.state==='LECTURING'||session?.state==='ANSWERING'?<><Pause size={16}/>暂停</>:<><Play size={16}/>{session?.state==='PAUSED'?'继续讲课':session?.state==='FINISHED'?'重新开始':'开始讲课'}</>}</button>
               <button className="icon-btn" title="下一页" aria-label="下一页" disabled={busy||!course||session?.state==='FINISHED'} onClick={()=>void run(()=>flip('next'))}><ChevronRight/></button>
             </div>
+            <div className="lesson-credit company-signature">北京简融易数科技有限公司</div>
           </div>
           <details className="lesson-extra"><summary>讲稿与课堂设置</summary><div className="lesson-extra-body"><div className="actions"><button className="text-btn" disabled={busy||!session} onClick={()=>void run(async()=>{stop();if(session&&session.state!=='FINISHED')await perform('finish');setSession(null);current.current=null;})}><RotateCcw size={15}/>新会话</button>
               {course&&<a className="icon-btn export-button" title="下载 PPTX" aria-label="下载 PPTX" href={`/api/courses/${course.id}/export.pptx`}><Download size={18}/></a>}</div>
