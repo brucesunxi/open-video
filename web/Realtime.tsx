@@ -117,8 +117,8 @@ export function Realtime({teacher,avatar,config}:{teacher:Teacher;avatar?:Asset;
 
     </div><div className="realtime-conversation"><h3 className="conversation-title">课堂对话</h3><div className={`messages ${session?.messages.length?'has-messages':'is-empty'}`} aria-live="polite">{!session?.messages.length&&<p>可以先问一个知识点，也可以聊聊你没听懂的地方。</p>}{session?.messages.map((m,i)=><div className={`message ${m.role}`} key={i}><small>{m.role==='user'?'你':teacher.name}</small><div className="message-body">{m.text}</div>{m.sources?.length?<details className="sources"><summary>{m.sources.length} 条资料依据</summary>{m.sources.map(x=><p key={x.id}><b>{x.title}</b><br/>{x.text}</p>)}</details>:null}</div>)}</div><form className="chat-input" onSubmit={e=>{e.preventDefault();void send();}}><textarea aria-label="实时对话文字" placeholder="也可以打字，发送后老师会回答…" value={draft} onChange={e=>setDraft(e.target.value)}/><button className="primary" disabled={!draft.trim()}><Send size={16}/>发送</button></form></div></div>
     <details className="realtime-settings"><summary>语音与识别设置</summary>      <div className="two-col"><label>语音识别<select aria-label="实时识别方式" disabled={active.current} value={input} onChange={e=>setInput(e.target.value)}><option value="auto">优先浏览器 · GPU 自动兜底</option><option value="browser">仅浏览器识别</option><option value="gpu" disabled={!config?.asr.configured}>GPU 识别{!config?.asr.configured?' · 待连接':''}</option></select></label><label>老师声音<select disabled={active.current} value={voice} onChange={e=>setVoice(e.target.value)}><option value="browser">浏览器演示声音</option><option value="gpu" disabled={!config?.tts.configured}>老师克隆声音{!config?.tts.configured?' · 待连接':''}</option></select></label></div>
-      <p className="asr-route" data-testid="asr-route">当前：{routeLabel} · {config?.asr.configured?'GPU 兜底已配置（待实测）':'GPU 兜底待配置'}</p>{fallbackNote&&<p role="status">{fallbackNote}</p>}
-      <small>浏览器识别可能使用浏览器厂商的在线服务。当前采用轮流说话，支持按钮打断；尚不是双向同时说话。GPU 模型接入后再验收延迟和音色。</small>
+      <p className="asr-route" data-testid="asr-route" data-route={routeLabel}>北京简融易数科技</p>{fallbackNote&&<p role="status">{fallbackNote}</p>}
+
     </details>
   </section>;
 }

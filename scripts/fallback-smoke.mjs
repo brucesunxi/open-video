@@ -22,7 +22,7 @@ for(const scenario of ['network','permission','missing','gpu-failure','silence',
    await page.clock.install();await page.evaluate(()=>window.rec.onspeechstart());await page.clock.fastForward(21000);
  }else await page.evaluate(code=>window.rec.onerror({error:code}),scenario==='permission'?'not-allowed':scenario==='silence'?'no-speech':'network');
  if(['network','gpu-failure','timeout','empty-result'].includes(scenario)){
-   await page.getByTestId('asr-route').filter({hasText:'自动兜底'}).waitFor();
+   await page.locator('[data-testid="asr-route"][data-route*="自动兜底"]').waitFor();
    if(scenario==='timeout')await page.clock.resume();
    if(scenario==='gpu-failure')await page.getByRole('alert').filter({hasText:'GPU 识别失败'}).waitFor();
    else await page.locator('.message.assistant').waitFor();
