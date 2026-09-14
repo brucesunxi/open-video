@@ -129,3 +129,8 @@
  .realtime-conversation .chat-input textarea{font-size:16px;}
  .realtime-conversation .chat-input button{padding:12px;}
 }
+
+.company-signature{font-family:"PingFang SC","Microsoft YaHei",sans-serif;font-size:13px;font-weight:700;font-style:italic;letter-spacing:.6px;color:#496a5c;}
+.realtime-credit{text-align:right;margin:10px 2px 0;padding-right:4px;line-height:1.6;}
+.lesson-board footer.company-signature{font-weight:700;font-style:italic;}
+@media(max-width:650px){.realtime-credit{font-size:11px;letter-spacing:.2px;margin-top:8px;}}
