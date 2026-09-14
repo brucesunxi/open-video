@@ -16,8 +16,8 @@ def retain_reference(frame, source, box):
     # Preserve generated blinking and speech; protect the rest from neural smoothing.
     def ellipse(cx,cy,rx,ry):
         return np.clip((1-((xx-cx)/rx)**2-((yy-cy)/ry)**2)*4,0,1)
-    eyes=np.maximum(ellipse(x1+w*.30,y1+h*.39,w*.22,h*.13),
-                    ellipse(x1+w*.70,y1+h*.39,w*.22,h*.13))
-    mouth=ellipse(x1+w*.50,y1+h*.76,w*.34,h*.21)
-    alpha=cv2.GaussianBlur((face*(1-eyes)*(1-mouth)).astype(np.float32),(9,9),0)[...,None]*.90
+    eyes=np.maximum(ellipse(x1+w*.30,y1+h*.39,w*.18,h*.085),
+                    ellipse(x1+w*.70,y1+h*.39,w*.18,h*.085))
+    mouth=ellipse(x1+w*.50,y1+h*.76,w*.30,h*.16)
+    alpha=cv2.GaussianBlur((face*(1-eyes)*(1-mouth)).astype(np.float32),(9,9),0)[...,None]*.98
     return np.ascontiguousarray(np.clip(aligned*alpha+frame*(1-alpha),0,255).astype(np.uint8))
