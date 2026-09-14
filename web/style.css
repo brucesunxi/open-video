@@ -137,9 +137,9 @@
 
 .realtime-controls .realtime-credit{margin:0 0 0 auto;max-width:100%;padding:0 2px;align-self:center;}
 @media(max-width:650px){
- .realtime-stage .realtime-controls{display:grid;grid-template-columns:1fr 1fr minmax(80px,.9fr);gap:6px;align-items:center;}
- .realtime-stage .realtime-controls button{font-size:11px;padding:10px 3px;gap:3px;min-height:44px;}
- .realtime-controls .realtime-credit{font-size:10px;letter-spacing:0;line-height:1.6;margin:0;overflow-wrap:anywhere;text-align:right;}
+ .realtime-stage .realtime-controls{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px;align-items:center;}
+ .realtime-stage .realtime-controls button{font-size:13px;padding:12px 6px;gap:6px;min-height:44px;}
+ .realtime-controls .realtime-credit{grid-column:1 / -1;justify-self:end;font-size:12px;letter-spacing:.2px;line-height:1.6;margin:0;padding:2px 4px;white-space:nowrap;text-align:right;}
 }
 
 .lesson-credit{text-align:right;padding:0 22px 14px;line-height:1.6;}
