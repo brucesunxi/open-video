@@ -58,4 +58,15 @@ const malformed=new Response('data: '+JSON.stringify({index:2,mime:'audio/wav',d
 await assert.rejects(async()=>{for await(const blob of speechMedia(malformed)){}},/顺序/);
 const truncated=new Response(event(0),{headers:{'Content-Type':'text/event-stream'}});
 await assert.rejects(async()=>{for await(const blob of speechMedia(truncated)){}},/提前结束/);
+// Board progress follows the media clock, and stale callbacks cannot advance it.
+requests=[];audios=[];allowPlay=true;let progress=[];
+speaker.onProgress=(text,offset)=>progress.push(offset);
+const boardText='我们先观察相同的单位。';
+const boardPlay=speaker.play(boardText,'teacher','gpu',()=>{},()=>failed++,true);
+await until(()=>requests.length===1);controller.enqueue(encoder.encode(event(0)));
+await until(()=>audios.length===1&&speaker.speaking);
+audios[0].duration=10;audios[0].currentTime=5;audios[0].ontimeupdate();
+assert.equal(progress.at(-1),Math.floor(boardText.length/2));
+const stale=audios[0].ontimeupdate;speaker.stop();const count=progress.length;stale();assert.equal(progress.length,count);
+await boardPlay;
 console.log('PASS: balanced complete text, one streaming request, partial network packets, ordered playback, cancellation, malformed/truncated stream');

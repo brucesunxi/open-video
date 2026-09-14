@@ -61,6 +61,7 @@ export class Speaker {
   onChange:(value:boolean)=>void=()=>{};
   onVideo:(video:HTMLVideoElement|null)=>void=()=>{};
   onWaiting:()=>void=()=>{};
+  onProgress:(text:string,offset:number)=>void=()=>{};
   stop(){
     this.generation++;this.resumePlayback=null;this.onPlaybackBlocked(false);this.onVideo(null);
     this.abort?.abort();this.abort=null;
@@ -70,6 +71,7 @@ export class Speaker {
   }
   async play(text:string, teacherId:string, mode:string, ended:()=>void, error:(e:Error)=>void,continuous=false){
     this.stop();const generation=this.generation;
+    if(continuous)this.onProgress(text,0);
     const finish=()=>{
       if(generation!==this.generation)return;
       // A speaking/blinking final frame is not a listening expression. Restore
@@ -77,6 +79,7 @@ export class Speaker {
       this.onVideo(null);
       if(this.audio){this.audio.onended=null;this.audio.onerror=null;this.audio.pause();this.audio.src='';this.audio=null;}
       if(this.url){URL.revokeObjectURL(this.url);this.url=null;}
+      if(continuous)this.onProgress(text,text.length);
       this.speaking=false;this.onChange(false);ended();
     };
     const fail=(message:string)=>{if(generation!==this.generation)return;this.stop();error(new Error(message));};
@@ -86,13 +89,14 @@ export class Speaker {
       const utterance=new SpeechSynthesisUtterance(text);utterance.lang='zh-CN';utterance.rate=.95;
       const voice=window.speechSynthesis.getVoices().find(v=>v.lang.startsWith('zh'));if(voice)utterance.voice=voice;
       utterance.onstart=()=>{if(generation===this.generation){this.speaking=true;this.onChange(true);}};
+      utterance.onboundary=e=>{if(continuous&&generation===this.generation)this.onProgress(text,e.charIndex);};
       utterance.onend=finish;utterance.onerror=()=>fail('浏览器朗读未完成。课程已暂停，可重新播放或切换静音阅读。');
       window.speechSynthesis.speak(utterance);return;
     }
     this.abort=new AbortController();const signal=this.abort.signal;
     let stream:AsyncGenerator<Blob>|undefined;
     const prepared=new Set<{media:HTMLMediaElement;url:string}>();
-    const dispose=(item:{media:HTMLMediaElement;url:string})=>{item.media.onended=null;item.media.onerror=null;item.media.pause();item.media.src='';URL.revokeObjectURL(item.url);prepared.delete(item);};
+    const dispose=(item:{media:HTMLMediaElement;url:string})=>{item.media.onended=null;item.media.onerror=null;item.media.ontimeupdate=null;item.media.pause();item.media.src='';URL.revokeObjectURL(item.url);prepared.delete(item);};
     try{
       const chunks=speechChunks(text,continuous);if(!chunks.length){finish();return;}
       this.onWaiting();
@@ -126,6 +130,9 @@ export class Speaker {
         if(result.done)throw new Error('老师的回答未播放完整，请重试。');
         if(i+1<chunks.length)pending=next();
         const item=result.value,audio=item.media;this.url=item.url;this.audio=audio;
+        const prefix=chunks.slice(0,i).join('').length;
+        const progress=()=>{if(continuous&&generation===this.generation&&Number.isFinite(audio.duration)&&audio.duration>0)this.onProgress(text,prefix+Math.floor(chunks[i].length*Math.min(1,audio.currentTime/audio.duration)));};
+        audio.ontimeupdate=progress;
         await new Promise<void>((resolve,reject)=>{
           const release=()=>{this.resumePlayback=null;this.onPlaybackBlocked(false);signal.removeEventListener('abort',cancel);};
           const cancel=()=>{release();resolve();};signal.addEventListener('abort',cancel,{once:true});

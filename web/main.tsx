@@ -4,6 +4,7 @@ import {BookOpen,GraduationCap,Library,Presentation,Settings2,Plus,ArrowUpRight,
 import {api,post,type Teacher,type Knowledge,type Course,type Session,type Asset,type Config,type Source} from './types';
 import {Avatar} from './Avatar';
 import {Speaker} from './speech';
+import {LessonBoard} from './LessonBoard';
 import {CourseMedia} from './CourseMedia';
 import {Realtime} from './Realtime';
 import {TeacherMaterials} from './TeacherMaterials';
@@ -31,11 +32,14 @@ function App(){
   const [playbackBlocked,setPlaybackBlocked]=useState(false);
   const [video,setVideo]=useState<HTMLVideoElement|null>(null);
   const [preparingSpeech,setPreparingSpeech]=useState(false);
+  const [boardOffset,setBoardOffset]=useState(-1);
   const speaker=useRef(new Speaker()),epoch=useRef(0),current=useRef<Session|null>(null),askAbort=useRef<AbortController|null>(null),recorder=useRef<MediaRecorder|null>(null),media=useRef<MediaStream|null>(null),currentTeacher=useRef(teacherId);
   const teacher=teachers.find(t=>t.id===teacherId),course=courses.find(c=>c.id===(session?.course_id||courseId));
   const clonedVoiceReady=Boolean(config?.tts.configured&&teacher?.consent&&teacher?.voice_profile_id);
   useEffect(()=>{setVoice(clonedVoiceReady?'gpu':'browser');},[teacherId,clonedVoiceReady]);
   const slide=course?.slides[session?.slide_index||0],avatar=assets.find(a=>a.id===teacher?.avatar_asset_id);
+  useEffect(()=>setBoardOffset(-1),[slide?.id,teacherId]);
+  speaker.current.onProgress=(text,offset)=>{if(text===slide?.narration)setBoardOffset(offset);};
   current.current=session;
   currentTeacher.current=teacherId;
   speaker.current.onChange=value=>{setSpeaking(value);if(value)setPreparingSpeech(false);};
@@ -134,7 +138,7 @@ function App(){
           {course&&<CourseMedia key={`${course.id}:${teacher.voice_profile_id}:${teacher.avatar_asset_id}`} course={course} teacher={teacher}/>}
           <div className="class-toolbar"><div className="select-course"><Presentation size={18}/><select aria-label="选择课堂课程" value={courseId} disabled={busy} onChange={e=>{stop();const old=current.current;if(old&&old.state!=='FINISHED')void perform('pause',old).catch(report);setSession(null);current.current=null;setCourseId(e.target.value);}}><option value="">自由问答 · 全部已审核资料</option>{courses.filter(c=>c.status==='published').map(c=><option key={c.id} value={c.id}>{c.title} · v{c.version}</option>)}</select></div><span className="subtle">{course?.slides.length||0} 页课件</span><div className="spacer"/><select className="voice-select" aria-label="声音模式" value={voice} onChange={e=>{void pause().catch(report);setVoice(e.target.value);}}><option value="browser">浏览器演示声音</option><option value="silent">静音阅读</option><option value="gpu" disabled={!config?.tts.configured}>老师克隆声音{!config?.tts.configured?' · 待连接':''}</option></select></div>
           <div className="class-grid"><section className="stage-column"><div className="stage panel"><div className="stage-top"><span><span className={`status-dot ${speaking?'pulse':''}`}/>{preparingSpeech?'正在生成老师声音与画面':session?labels[session.state]:'课堂准备中'}</span><span className="pill pale"><ShieldCheck size={13}/>知识库限定</span></div>
-            <div className="teaching-scene"><div className="presenter"><Avatar video={video} url={avatar?.url} kind={avatar?.kind} speaking={speaking} gesture={session?.state==='ANSWERING'?'think':slide?.gesture||'idle'}/><div className="presenter-name">{teacher.name}<small>{teacher.subject||'教师'}</small></div></div>
+            <div className="teaching-scene"><div className="lecture-composition"><div className="presenter"><Avatar video={video} url={avatar?.url} kind={avatar?.kind} speaking={speaking} gesture={session?.state==='ANSWERING'?'think':slide?.gesture||'idle'}/><div className="presenter-name">{teacher.name}<small>{teacher.subject||'教师'}</small></div></div>{slide&&<LessonBoard slide={slide} offset={boardOffset} all={voice==='silent'}/>}</div>
               <div className="slide-card"><span className="slide-kicker">{course?'一起学习 / '+String((session?.slide_index||0)+1).padStart(2,'0'):'一起探索'}</span><h2>{slide?.title||'每一个好问题，都是学习的开始。'}</h2><div className="slide-rule"/>{slide?<ul>{slide.bullets.map((b,i)=><li key={i}><span>{String(i+1).padStart(2,'0')}</span>{b}</li>)}</ul>:<p className="empty-copy">在右侧提出问题，老师会从已审核的教学资料中寻找依据。<br/><br/>选择一门已发布的课程，也可以开始连续讲课。</p>}<div className="slide-footer"><BookOpen size={14}/>{course?.title||'教学知识库'}<span>{course?`${(session?.slide_index||0)+1} / ${course.slides.length}`:'Q & A'}</span></div></div>
             </div><div className="caption">{caption||'准备好了，就开始今天的学习吧。'}</div>
             {playbackBlocked&&<div className="playback-prompt" role="status"><span>声音和画面已准备好，手机浏览器需要你点击后播放。</span><button className="primary" onClick={()=>speaker.current.resume()}>点击播放老师声音与动画</button></div>}<div className="stage-controls"><button className="icon-btn" title="上一页" aria-label="上一页" disabled={busy||!course||!session||session.state==='FINISHED'} onClick={()=>void run(()=>flip('previous'))}><ChevronLeft/></button>
