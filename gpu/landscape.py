@@ -5,6 +5,18 @@ import numpy as np
 from PIL import Image, ImageOps
 
 
+def reference_crop(raw, size=512):
+    image=ImageOps.exif_transpose(Image.open(io.BytesIO(raw))).convert("RGB")
+    image.thumbnail((1400,1400))
+    rgb=np.array(image)
+    detector=cv2.CascadeClassifier(cv2.data.haarcascades+"haarcascade_frontalface_default.xml")
+    faces=detector.detectMultiScale(cv2.cvtColor(rgb,cv2.COLOR_RGB2GRAY),1.1,5,minSize=(55,55))
+    if len(faces)!=1:raise ValueError("需要清晰单人正面形象")
+    x,y,w,h=faces[0];side=int(max(w,h)*2.0)
+    left=int(x+w/2-side/2);top=int(y+h*.55-side/2)
+    return np.array(image.crop((left,top,left+side,top+side)).resize((size,size)))
+
+
 def prepare_layout(raw):
     image=ImageOps.exif_transpose(Image.open(io.BytesIO(raw))).convert('RGB')
     image.thumbnail((1400,1400))

@@ -514,7 +514,7 @@ def create_app(data_dir=None):
                 if image_path.stat().st_size > 15 * 1024 * 1024:
                     raise HTTPException(413, '动画参考图片最多 15MB。')
                 image = image_path.read_bytes()
-        identity = {'version': os.getenv('MEDIA_CACHE_VERSION', '1'), 'teacher': teacher['id'],
+        identity = {'version': os.getenv('MEDIA_CACHE_VERSION', 'reference-skin-v1'), 'teacher': teacher['id'],
                     'voice': teacher['voice_profile_id'], 'text': body.text,
                     'image': hashlib.sha256(image).hexdigest() if image else '',
                     'tts': os.getenv('TTS_BASE_URL'), 'avatar': os.getenv('AVATAR_BASE_URL') if image else ''}
@@ -533,7 +533,7 @@ def create_app(data_dir=None):
     def course_media_status(course_id: str, body: CourseMediaPlan):
         course = need('course', course_id)
         teacher = need('teacher', course['teacher_id'])
-        signature = hashlib.sha256(json.dumps([course_id, body.chunks, teacher['voice_profile_id'], teacher['avatar_asset_id'], os.getenv('MEDIA_CACHE_VERSION','1')]).encode()).hexdigest()
+        signature = hashlib.sha256(json.dumps([course_id, body.chunks, teacher['voice_profile_id'], teacher['avatar_asset_id'], os.getenv('MEDIA_CACHE_VERSION','reference-skin-v1')]).encode()).hexdigest()
         return next((j for j in store.list('media_job') if j.get('signature') == signature), None)
 
     @app.post('/api/courses/{course_id}/prepare-media')
@@ -547,7 +547,7 @@ def create_app(data_dir=None):
         for chunks, slide in zip(body.chunks, course['slides']):
             if not chunks or len(chunks)>200 or any(not c.strip() or len(c)>200 for c in chunks) or ''.join(chunks).strip()!=slide['narration'].strip():
                 raise HTTPException(400, '准备内容必须与课程讲稿一致。')
-        signature = hashlib.sha256(json.dumps([course_id, body.chunks, teacher['voice_profile_id'], teacher['avatar_asset_id'], os.getenv('MEDIA_CACHE_VERSION','1')]).encode()).hexdigest()
+        signature = hashlib.sha256(json.dumps([course_id, body.chunks, teacher['voice_profile_id'], teacher['avatar_asset_id'], os.getenv('MEDIA_CACHE_VERSION','reference-skin-v1')]).encode()).hexdigest()
         existing = next((j for j in store.list('media_job') if j.get('signature')==signature and j['status'] in ('queued','preparing')), None)
         if existing: return existing
         job = {'id': ident('media'), 'teacher_id': teacher['id'], 'course_id': course_id,

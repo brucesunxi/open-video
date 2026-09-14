@@ -15,7 +15,8 @@ import imageio_ffmpeg
 from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.responses import Response
 import avatar_service as portrait
-from landscape import prepare_layout, compose_frame
+from landscape import prepare_layout, compose_frame, reference_crop
+from identity_detail import retain_reference
 
 sys.path.insert(0, os.environ.get('MUSETALK_REPO', '/workspace/teacher-deploy/avatar/MuseTalk'))
 from musetalk.models.vae import VAE
@@ -66,7 +67,7 @@ app=FastAPI(lifespan=lifespan)
 @app.get('/health')
 def health():
     return {'ready':processor is not None,'model':'MuseTalk 1.5 + LivePortrait',
-            'motion':'audio-content lipsync + cached blink and head motion','fps':FPS,'prepared_avatars':len(templates)}
+            'motion':'audio-content lipsync + cached blink and head motion','fps':FPS,'prepared_avatars':len(templates),'identity_detail':'reference-skin-v1'}
 
 def prepare(raw):
     key=hashlib.sha256(raw).hexdigest()
@@ -93,6 +94,8 @@ def prepare(raw):
     # A stable face box avoids detector jitter across adjacent generated frames.
     box=(max(0,x),max(0,int(y+h*.03)),min(size,x+w),min(size,int(y+h*1.05)))
     x1,y1,x2,y2=box
+    source=reference_crop(raw,frames[0].shape[0])
+    frames=[retain_reference(frame,source,box) for frame in frames]
     latents=[]
     for frame in frames:
         face=cv2.resize(frame[y1:y2,x1:x2],(256,256))[:,:,::-1].copy()
@@ -102,7 +105,7 @@ def prepare(raw):
         latents.append(torch.cat([vae.vae.encode(masked).latent_dist.mode(),
                                  vae.vae.encode(reference).latent_dist.mode()],dim=1)*vae.scaling_factor)
     yy,xx=np.mgrid[:256,:256]
-    ellipse=((xx-128)/112)**2+((yy-190)/73)**2
+    ellipse=((xx-128)/78)**2+((yy-190)/43)**2
     alpha=np.clip((1-ellipse)*5,0,1).astype(np.float32)
     alpha*=np.clip((yy-118)/25,0,1).astype(np.float32)
     alpha=cv2.GaussianBlur(alpha,(15,15),0)
@@ -148,7 +151,7 @@ def render(image:UploadFile=File(...),audio:UploadFile=File(...)):
             silent=base/'silent.mp4';voice=base/'voice.wav';output=base/'result.mp4';voice.write_bytes(wav)
             writer=imageio_ffmpeg.write_frames(str(silent),(960,540),fps=FPS,codec='libx264',
                 pix_fmt_in='rgb24',pix_fmt_out='yuv420p',quality=None,macro_block_size=2,
-                output_params=['-preset','veryfast','-crf','25','-tune','zerolatency','-threads','2'])
+                output_params=['-preset','veryfast','-crf','20','-tune','zerolatency','-threads','2'])
             writer.send(None)
             x1,y1,x2,y2=template['box'];alpha=template['alpha']
             try:
