@@ -56,3 +56,39 @@
 
 .teaching-scene{container-type:inline-size;container-name:lecture-area}
 @container lecture-area (max-width:720px){.lecture-composition{aspect-ratio:auto;grid-template-columns:1fr;border-width:5px}.lecture-composition .presenter{grid-column:1;grid-row:1;aspect-ratio:16/9}.lecture-composition .photo-avatar img,.lecture-composition .portrait-video video{object-fit:contain}.lesson-board{grid-row:2;grid-column:1;padding:20px;min-height:340px}.lesson-board header,.lesson-board footer{font-size:12px}.lesson-board h2{font-size:24px;margin:16px 0;padding-bottom:14px}.board-line p{font-size:18px;line-height:1.6}.board-line{gap:10px;padding:6px}.board-number{font-size:14px}.board-writing{gap:12px}}
+/* Focused lesson player: one teaching surface, adjacent controls, optional tools. */
+.lesson-focus .page-title{display:none}
+.lesson-focus .class-mode{margin-bottom:12px}
+.lesson-focus .class-toolbar{margin-bottom:12px;gap:10px}
+.lesson-focus .class-grid{grid-template-columns:minmax(0,1fr);max-width:1200px;margin:auto;gap:12px}
+.lesson-focus .stage{overflow:visible;border-radius:16px}
+.lesson-focus .stage-top{height:40px}
+.lesson-focus .teaching-scene{padding:0 12px;min-height:0;gap:0}
+.lesson-focus .lecture-composition{box-shadow:none;border-width:5px}
+.lesson-focus .stage-controls{position:sticky;bottom:12px;z-index:15;background:#fff;border:1px solid var(--line);border-radius:14px;margin:8px 12px;padding:10px;box-shadow:0 3px 14px #24352512;min-height:64px}
+.lesson-focus .stage-controls button,.lesson-focus .stage-controls a{min-height:44px;min-width:44px}
+.lesson-focus .stage-controls .play-button{min-width:150px}
+.lesson-extra,.lesson-questions{border:1px solid var(--line);border-radius:12px;background:#fff;margin-top:10px}
+.lesson-extra summary,.lesson-questions summary{padding:14px 18px;cursor:pointer;color:#496959;font-size:13px;min-height:44px}
+.lesson-extra-body{padding:0 16px 16px}.lesson-extra .caption{text-align:left;line-height:1.9;padding:12px 0;white-space:pre-wrap}
+.lesson-questions .chat{border:0;box-shadow:none;height:440px}.lesson-questions .chat-empty{padding:12px}.lesson-questions .chat-empty>span,.lesson-questions .chat-empty h3,.lesson-questions .chat-empty>p{display:none}
+.lesson-focus .class-toolbar .select-course{min-width:0;flex:1}.lesson-focus .select-course select{max-width:100%;text-overflow:ellipsis}
+@media(max-width:750px){
+ .lesson-focus .main>header,.lesson-focus .main>footer{display:none}
+ .lesson-focus .sidebar{padding:10px 14px}.lesson-focus .sidebar .brand{padding:0}.lesson-focus main{padding:10px}
+ .lesson-focus .class-mode{margin-bottom:8px}.lesson-focus .class-mode button{padding:10px 16px;min-height:44px}
+ .lesson-focus .class-toolbar{gap:6px;margin-bottom:8px}.lesson-focus .class-toolbar .spacer{display:none}.lesson-focus .voice-select{font-size:11px;max-width:132px;padding:8px}
+ .lesson-focus .stage-top{height:34px;font-size:11px;padding:0 10px}.lesson-focus .teaching-scene{padding:0 6px}
+ .lesson-focus .lecture-composition{grid-template-columns:1fr;aspect-ratio:auto;border-width:3px;border-radius:10px}
+ .lesson-focus .lecture-composition .presenter{grid-column:1;grid-row:1;aspect-ratio:auto;height:clamp(110px,19svh,160px)}
+ .lesson-focus .lecture-composition .presenter-name{font-size:11px;padding:5px;text-align:right;background:linear-gradient(transparent,#213d3580)}
+ .lesson-focus .presenter-name small{display:none}
+ .lesson-focus .lesson-board{grid-column:1;grid-row:2;min-height:235px;padding:12px 14px}
+ .lesson-focus .lesson-board header,.lesson-focus .lesson-board footer{display:none}
+ .lesson-focus .lesson-board h2{font-size:19px;margin:0 0 10px;padding-bottom:8px}
+ .lesson-focus .board-writing{gap:6px;justify-content:flex-start}.lesson-focus .board-line{padding:3px;gap:7px}.lesson-focus .board-line p{font-size:16px;line-height:1.45}.lesson-focus .board-number{font-size:12px}
+ .lesson-focus .stage-controls{bottom:calc(6px + env(safe-area-inset-bottom));margin:6px;padding:6px;gap:5px;min-height:58px}
+ .lesson-focus .stage-controls .play-button{min-width:130px}.lesson-focus .stage-controls .control-divider{display:none}.lesson-focus .stage-controls .text-btn{font-size:0;padding:6px}.lesson-focus .stage-controls .export-button{position:static;margin:0}
+ .lesson-focus .lesson-extra summary,.lesson-focus .lesson-questions summary{font-size:12px;padding:12px}
+}
+@media(prefers-reduced-motion:reduce){.board-line{transition:none}}
