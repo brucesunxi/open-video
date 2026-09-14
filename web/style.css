@@ -97,3 +97,35 @@
 .photo-avatar .school-emblem,.portrait-video .school-emblem{display:block;position:absolute;inset:12px auto auto 12px;width:clamp(44px,4.4vw,64px);height:auto;aspect-ratio:1;margin:0;padding:0;border-radius:50%;background-color:white;background-size:114%;background-position:center;box-shadow:0 1px 5px #102e3533;z-index:3;pointer-events:none}
 @media(max-width:750px){.photo-avatar .school-emblem,.portrait-video .school-emblem{inset:8px auto auto 8px;width:40px}}
 .lecture-composition .photo-avatar>.school-emblem{display:block}
+
+/* Keep the landscape teacher and written conversation in one reading column. */
+.realtime-grid{grid-template-columns:minmax(0,1fr);gap:20px;max-width:960px;margin:0 auto;}
+.realtime-stage{padding:16px;}
+.realtime-stage h3{margin:12px 0 6px;}
+.realtime-stage .live-partial{min-height:0;margin:8px 0 14px;line-height:1.6;}
+.realtime-stage .actions{margin-bottom:0;gap:10px;}
+.realtime-conversation{min-height:0;min-width:0;gap:12px;}
+.conversation-title{font-size:17px;margin:0;}
+.realtime-conversation .messages{height:auto;flex:none;max-height:320px;overflow-y:auto;overscroll-behavior:contain;padding:4px 8px;}
+.realtime-conversation .messages.is-empty{min-height:0;color:var(--muted);}
+.realtime-conversation .messages.is-empty p{margin:4px 0;line-height:1.6;}
+.realtime-conversation .message-body{overflow-wrap:anywhere;}
+.realtime-conversation .chat-input{display:flex;align-items:flex-end;gap:12px;padding:12px;background:#fff;}
+.realtime-conversation .chat-input textarea{flex:1;min-width:0;min-height:72px;height:72px;max-height:180px;resize:vertical;border:0;padding:8px;margin:0;}
+.realtime-conversation .chat-input button{flex:none;margin:0;min-height:44px;}
+.realtime-settings{max-width:960px;margin:20px auto 0;border-top:1px solid var(--line);padding-top:14px;color:var(--muted);}
+.realtime-settings summary{cursor:pointer;font-size:14px;}
+.realtime-settings .two-col{margin-top:16px;}
+.realtime-settings small{display:block;line-height:1.8;}
+@media(max-width:650px){
+ .realtime-heading{flex-direction:column;gap:4px;margin-bottom:14px;}
+ .realtime-heading h2{margin-top:0;}
+ .realtime-heading p{font-size:13px;margin:6px 0;}
+ .realtime-grid{gap:16px;}
+ .realtime-stage{padding:10px;}
+ .realtime-stage .actions button{flex:1;min-width:0;padding:12px 8px;font-size:13px;}
+ .realtime-conversation .messages{max-height:260px;}
+ .realtime-conversation .chat-input{gap:6px;padding:8px;}
+ .realtime-conversation .chat-input textarea{font-size:16px;}
+ .realtime-conversation .chat-input button{padding:12px;}
+}
