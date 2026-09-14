@@ -283,6 +283,18 @@ def test_prepare_course_media_matches_course_and_reuses_cache(client, monkeypatc
     async def animate(image,audio):return b'movie','video/mp4'
     monkeypatch.setattr(providers,'synthesize',synth)
     monkeypatch.setattr(providers,'animate',animate)
+    # Rendering is mocked above; exercise durable playback publishing with those bytes.
+    import importlib, json
+    app_module = importlib.import_module('server.app')
+    def join(root, signature, index, clips):
+        folder = root/'course-playback'/signature
+        folder.mkdir(parents=True, exist_ok=True)
+        data = b''.join(data for _, data in clips)
+        (folder/f'{index}.mp4').write_bytes(data)
+        info = {'size':len(data),'duration':2,'segments':[{'start':0,'duration':2,'offset':0,'length':len(clips[0][0])}]}
+        (folder/f'{index}.json').write_text(json.dumps(info))
+        return info
+    monkeypatch.setattr(app_module, 'join_page', join)
     endpoint=f"/api/courses/{c['id']}/prepare-media"
     assert client.post(endpoint,json={'chunks':[['unrelated']]}).status_code==400
     plan={'chunks':[[s['narration']] for s in c['slides']]}
@@ -296,3 +308,13 @@ def test_prepare_course_media_matches_course_and_reuses_cache(client, monkeypatc
     count=len(calls)
     r=client.post('/api/speech',json={'teacher_id':t['id'],'text':c['slides'][0]['narration'],'animate':True})
     assert r.headers['x-media-cache']=='hit' and len(calls)==count
+    playback = client.get(f"/api/courses/{c['id']}/playback").json()
+    assert playback['ready'] and len(playback['pages']) == len(c['slides'])
+    url = playback['pages'][0]['url']
+    partial = client.get(url, headers={'Range':'bytes=0-1'})
+    assert partial.status_code == 206 and partial.content == b'mo'
+    assert 'private' in partial.headers['cache-control']
+    assert len(calls) == count, 'direct playback must never invoke synthesis'
+    client.put(f"/api/teachers/{t['id']}",json={**t,'voice_profile_id':'different','avatar_asset_id':image['id']})
+    assert not client.get(f"/api/courses/{c['id']}/playback").json()['ready']
+    assert client.get(url).status_code == 404, 'old identity cannot be played after switching voice'

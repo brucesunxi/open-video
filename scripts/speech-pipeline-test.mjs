@@ -70,3 +70,13 @@ assert.equal(progress.at(-1),Math.floor(boardText.length/2));
 const stale=audios[0].ontimeupdate;speaker.stop();const count=progress.length;stale();assert.equal(progress.length,count);
 await boardPlay;
 console.log('PASS: balanced complete text, one streaming request, partial network packets, ordered playback, cancellation, malformed/truncated stream');
+// Prepared course pages bypass synthesis and keep board cues on the original clip timeline.
+requests=[];audios=[];allowPlay=true;progress=[];
+const ready={url:'/api/courses/demo/playback/hash/0.mp4',duration:20,segments:[{start:0,duration:4,offset:0,length:5},{start:4,duration:16,offset:5,length:15}]};
+speaker.preload(ready.url);const preloaded=audios[0];
+const preparedPlay=speaker.play('一'.repeat(20),'teacher','gpu',()=>ended++,()=>failed++,true,ready);
+await until(()=>speaker.speaking);assert.equal(requests.length,0,'prepared pages use native media URLs, not synthesis');
+assert.equal(audios.length,1,'reuse the preloaded native video');
+preloaded.duration=20;preloaded.currentTime=12;preloaded.ontimeupdate();assert.equal(progress.at(-1),12);
+preloaded.onended();await preparedPlay;assert.equal(failed,0);
+console.log('PASS: prepared course URL playback, preload reuse and original clip board timing');

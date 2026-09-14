@@ -22,6 +22,7 @@ from pydantic import BaseModel, Field
 from .store import Store, ident, now
 from .knowledge import parse_document, chunk_pages, retrieve
 from .media_cache import MediaCache
+from .course_playback import playback_signature, read_page, join_page
 from . import providers
 from . import auth as authentication
 
@@ -155,7 +156,11 @@ def create_app(data_dir=None):
         response.headers['X-Content-Type-Options'] = 'nosniff'
         response.headers['X-Frame-Options'] = 'DENY'
         if request.url.path.startswith('/api'):
-            response.headers['Cache-Control'] = 'no-store'
+            if re.fullmatch(r'/api/courses/[^/]+/playback/[a-f0-9]{64}/[0-9]+\.mp4', request.url.path) and response.status_code in (200, 206, 304):
+                response.headers['Cache-Control'] = 'private, max-age=3600'
+                response.headers['Vary'] = 'Cookie'
+            else:
+                response.headers['Cache-Control'] = 'no-store'
         return response
 
     @app.exception_handler(ValueError)
@@ -530,6 +535,37 @@ def create_app(data_dir=None):
             'X-Media-Cache': 'hit' if hit else 'miss',
             'Server-Timing': f'media;dur={(time.perf_counter()-started)*1000:.1f}'})
 
+    def course_playback_identity(course, teacher):
+        if not teacher.get('consent') or not teacher.get('voice_profile_id'):
+            raise HTTPException(400, '请先授权并建立老师音色。')
+        asset = need('asset', teacher.get('avatar_asset_id', ''))
+        if asset['teacher_id'] != teacher['id']:
+            raise HTTPException(400, '形象不属于当前老师。')
+        image_hash = hashlib.sha256((store.root/'assets'/asset['stored_name']).read_bytes()).hexdigest()
+        return playback_signature(course, teacher, image_hash)
+
+    @app.get('/api/courses/{course_id}/playback')
+    def course_playback(course_id: str):
+        course = need('course', course_id)
+        teacher = need('teacher', course['teacher_id'])
+        signature = course_playback_identity(course, teacher)
+        pages = []
+        for index in range(len(course['slides'])):
+            info = read_page(store.root, signature, index)
+            pages.append(dict(info, url=f'/api/courses/{course_id}/playback/{signature}/{index}.mp4') if info else None)
+        return {'signature': signature, 'ready': bool(pages) and all(pages), 'pages': pages}
+
+    @app.get('/api/courses/{course_id}/playback/{signature}/{index}.mp4')
+    def course_video(course_id: str, signature: str, index: int):
+        course = need('course', course_id)
+        teacher = need('teacher', course['teacher_id'])
+        if signature != course_playback_identity(course, teacher) or not 0 <= index < len(course['slides']):
+            raise HTTPException(404, '课程素材已更新，请刷新课堂。')
+        if not read_page(store.root, signature, index):
+            raise HTTPException(404, '课程视频尚未准备好。')
+        return FileResponse(store.root/'course-playback'/signature/f'{index}.mp4', media_type='video/mp4',
+                            headers={'Cache-Control': 'private, max-age=3600'})
+
     @app.post('/api/courses/{course_id}/media-status')
     def course_media_status(course_id: str, body: CourseMediaPlan):
         course = need('course', course_id)
@@ -559,7 +595,9 @@ def create_app(data_dir=None):
             try:
                 job.update(status='preparing',message='正在生成老师声音与动画')
                 store.put('media_job',job)
+                playback_id = course_playback_identity(course, teacher)
                 for page, chunks in enumerate(body.chunks,1):
+                    clips = []
                     for text in chunks:
                         latest=need('teacher',teacher['id'])
                         if any(latest.get(k)!=teacher.get(k) for k in ('voice_profile_id','avatar_asset_id')):
@@ -567,10 +605,14 @@ def create_app(data_dir=None):
                         result=await speech(Speech(teacher_id=teacher['id'],text=text,animate=True))
                         if not result.media_type.startswith('video/'):
                             raise ValueError('未生成动画，请检查所选形象。')
+                        clips.append((text, result.body))
                         job.update(completed=job['completed']+1,page=page)
                         store.put('media_job',job)
                         await asyncio.sleep(.1)
-                job.update(status='ready',message='整课动画已缓存，可以开始讲课')
+                    await asyncio.to_thread(join_page, store.root, playback_id, page-1, clips)
+                if course_playback_identity(course, need('teacher', teacher['id'])) != playback_id:
+                    raise ValueError('老师素材已更换，请重新准备。')
+                job.update(status='ready',message='整课视频已准备好，可直接播放')
             except asyncio.CancelledError:
                 job.update(status='interrupted',message='准备已中断，可重新准备并复用已完成片段。')
                 raise

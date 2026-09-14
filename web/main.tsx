@@ -3,7 +3,7 @@ import {createRoot} from 'react-dom/client';
 import {BookOpen,GraduationCap,Library,Presentation,Settings2,Plus,ArrowUpRight,ArrowRight,Play,Pause,ChevronLeft,ChevronRight,Download,Send,Mic,Square,FileText,Upload,Check,CheckCircle2,Volume2,RotateCcw,Monitor,Server,ShieldCheck,X,Quote,Sparkles,FolderOpen} from 'lucide-react';
 import {api,post,type Teacher,type Knowledge,type Course,type Session,type Asset,type Config,type Source} from './types';
 import {Avatar} from './Avatar';
-import {Speaker} from './speech';
+import {type ReadyPage,Speaker} from './speech';
 import {LessonBoard} from './LessonBoard';
 import {CourseMedia} from './CourseMedia';
 import {Realtime} from './Realtime';
@@ -33,11 +33,28 @@ function App(){
   const [video,setVideo]=useState<HTMLVideoElement|null>(null);
   const [preparingSpeech,setPreparingSpeech]=useState(false);
   const [boardOffset,setBoardOffset]=useState(-1);
+  const [readyPages,setReadyPages]=useState<(ReadyPage|null)[]>([]);
   const speaker=useRef(new Speaker()),epoch=useRef(0),current=useRef<Session|null>(null),askAbort=useRef<AbortController|null>(null),recorder=useRef<MediaRecorder|null>(null),media=useRef<MediaStream|null>(null),currentTeacher=useRef(teacherId);
+  const preparedSession=useRef<{key:string;promise:Promise<Session>}|null>(null);
+  const sessionSync=useRef<Promise<Session|null>|null>(null);
   const teacher=teachers.find(t=>t.id===teacherId),course=courses.find(c=>c.id===(session?.course_id||courseId));
   const clonedVoiceReady=Boolean(config?.tts.configured&&teacher?.consent&&teacher?.voice_profile_id);
   useEffect(()=>{setVoice(clonedVoiceReady?'gpu':'browser');},[teacherId,clonedVoiceReady]);
   const slide=course?.slides[session?.slide_index||0],avatar=assets.find(a=>a.id===teacher?.avatar_asset_id);
+  useEffect(()=>{
+    setReadyPages([]);let cancelled=false,timer:ReturnType<typeof setTimeout>;
+    const load=async()=>{try{
+      const data=await api<{ready:boolean;pages:(ReadyPage|null)[]}>(`/courses/${course!.id}/playback`);
+      if(cancelled)return;setReadyPages(data.pages);
+      if(!data.ready)timer=setTimeout(()=>void load(),5000);
+    }catch{if(!cancelled)timer=setTimeout(()=>void load(),10000);}};
+    if(course&&clonedVoiceReady&&teacher?.avatar_asset_id)void load();
+    return()=>{cancelled=true;clearTimeout(timer);};
+  },[course?.id,teacher?.voice_profile_id,teacher?.avatar_asset_id,clonedVoiceReady]);
+  useEffect(()=>{
+    if(voice!=='gpu')return;
+    for(const page of readyPages.slice(session?.slide_index||0,(session?.slide_index||0)+2))if(page)speaker.current.preload(page.url);
+  },[readyPages,session?.slide_index||0,voice]);
   useEffect(()=>setBoardOffset(-1),[slide?.id,teacherId]);
   speaker.current.onProgress=(text,offset)=>{if(text===slide?.narration)setBoardOffset(offset);};
   current.current=session;
@@ -74,10 +91,21 @@ function App(){
   async function restore(s:Session){stop();const live=await api<Session>(`/sessions/${s.id}`);let paused=live;
     if(!['FINISHED','READY','PAUSED'].includes(live.state))paused=await post(`/sessions/${live.id}/action`,{revision:live.revision,action:'pause'});
     setSession(paused);setCourseId(paused.course_id||'');setNotice('已恢复到上次课件页，点击继续即可讲课。');}
+  // Prepare bookkeeping before the user presses play; this never starts audio.
+  function prepareSession(){
+    const key=`${teacherId}:${courseId}`;
+    if(preparedSession.current?.key!==key){
+      const promise=post<Session>('/sessions',{teacher_id:teacherId,course_id:courseId||null});
+      preparedSession.current={key,promise};
+      void promise.catch(()=>{if(preparedSession.current?.promise===promise)preparedSession.current=null;});
+    }
+    return preparedSession.current!.promise;
+  }
+  useEffect(()=>{if(authorized&&teacherId&&courseId&&!current.current)void prepareSession().catch(()=>{});},[authorized,teacherId,courseId]);
   async function ensureSession(){if(current.current&&current.current.state!=='FINISHED')return current.current;
-    const s=await post<Session>('/sessions',{teacher_id:teacherId,course_id:courseId||null});setSession(s);current.current=s;return s;}
+    const s=await prepareSession();preparedSession.current=null;setSession(s);current.current=s;return s;}
   async function perform(action:string,s=current.current){if(!s)return null;const next=await post<Session>(`/sessions/${s.id}/action`,{revision:s.revision,action});if(current.current?.id!==s.id||currentTeacher.current!==s.teacher_id)return null;setSession(next);current.current=next;return next;}
-  async function pause(){stop();const s=current.current;if(!s||s.state==='FINISHED')return;for(let i=0;i<3;i++){const fresh=await api<Session>(`/sessions/${s.id}`);if(fresh.state==='FINISHED')return;try{await perform('pause',fresh);return;}catch(e){if(i===2)throw e;}}}
+  async function pause(){stop();await sessionSync.current;const s=current.current;if(!s||s.state==='FINISHED')return;for(let i=0;i<3;i++){const fresh=await api<Session>(`/sessions/${s.id}`);if(fresh.state==='FINISHED')return;try{await perform('pause',fresh);return;}catch(e){if(i===2)throw e;}}}
   function narrate(s:Session){
     const c=courses.find(x=>x.id===s.course_id);if(!c||s.state!=='LECTURING')return;
     const text=c.slides[s.slide_index].narration;setCaption(text);const generation=epoch.current;
@@ -85,10 +113,23 @@ function App(){
     void speaker.current.play(text,teacherId,voice,()=>{
       if(generation!==epoch.current)return;
       setPreparingSpeech(false);
-      void run(async()=>{const next=await perform('next',current.current);if(next) narrate(next);});
-    },e=>{report(e);void pause().catch(report);},true);
+      void run(async()=>{await sessionSync.current;if(generation!==epoch.current)return;const next=await perform('next',current.current);if(next) narrate(next);});
+    },e=>{report(e);void pause().catch(report);},true,readyPages[s.slide_index]||undefined);
   }
-  async function start(){stop();const s=await ensureSession();const next=await perform(s.state==='READY'?'start':'resume',s);if(next)narrate(next);}
+  async function start(){
+    stop();const generation=epoch.current;
+    const previous=current.current?.state!=='FINISHED'?current.current:null;
+    const pending=ensureSession();
+    const index=previous?.slide_index||0;
+    if(voice==='gpu'&&readyPages[index]&&course){
+      // Playback uses prepared media immediately, even if session creation is slow.
+      const playing:Session={id:'preparing',teacher_id:teacherId,course_id:courseId,revision:0,slide_index:index,messages:[],...previous,state:'LECTURING'};
+      setSession(playing);current.current=playing;narrate(playing);
+      const sync=pending.then(s=>perform(s.state==='READY'?'start':'resume',s));sessionSync.current=sync;
+      try{await sync;}catch(e){if(generation===epoch.current){stop();setSession(previous);current.current=previous;}throw e;}
+      finally{if(sessionSync.current===sync)sessionSync.current=null;}
+    }else{const s=await pending;if(generation!==epoch.current)return;const next=await perform(s.state==='READY'?'start':'resume',s);if(next&&generation===epoch.current)narrate(next);}
+  }
   async function flip(direction:string){stop();const s=await ensureSession();const next=await perform(direction,s);if(next)narrate(next);}
   async function ask(){
     if(!question.trim())return;stop();const generation=epoch.current;const text=question.trim();setQuestion('');
@@ -136,11 +177,11 @@ function App(){
         {page==='classroom'&&teacher&&classMode==='realtime'&&<Realtime key={teacher.id} teacher={teacher} avatar={avatar} config={config}/>}
         {page==='classroom'&&teacher&&classMode==='lesson'&&<>
           <div className="class-toolbar"><div className="select-course"><Presentation size={18}/><select aria-label="选择课堂课程" value={courseId} disabled={busy} onChange={e=>{stop();const old=current.current;if(old&&old.state!=='FINISHED')void perform('pause',old).catch(report);setSession(null);current.current=null;setCourseId(e.target.value);}}><option value="">自由问答 · 全部已审核资料</option>{courses.filter(c=>c.status==='published').map(c=><option key={c.id} value={c.id}>{c.title} · v{c.version}</option>)}</select></div><span className="subtle">{course?.slides.length||0} 页课件</span><div className="spacer"/><select className="voice-select" aria-label="声音模式" value={voice} onChange={e=>{void pause().catch(report);setVoice(e.target.value);}}><option value="browser">浏览器演示声音</option><option value="silent">静音阅读</option><option value="gpu" disabled={!config?.tts.configured}>老师克隆声音{!config?.tts.configured?' · 待连接':''}</option></select></div>
-          <div className="class-grid"><section className="stage-column"><div className="stage panel"><div className="stage-top"><span><span className={`status-dot ${speaking?'pulse':''}`}/>{preparingSpeech?'正在生成老师声音与画面':session?labels[session.state]:'课堂准备中'}</span><span className="pill pale">{course?`${(session?.slide_index||0)+1} / ${course.slides.length}`:"自由问答"}</span></div>
+          <div className="class-grid"><section className="stage-column"><div className="stage panel"><div className="stage-top"><span><span className={`status-dot ${speaking?'pulse':''}`}/>{preparingSpeech?(readyPages[session?.slide_index||0]?'正在加载已准备的视频':'正在生成老师声音与画面'):session?labels[session.state]:(readyPages[0]?'视频已准备好 · 点击播放':'课堂准备中')}</span><span className="pill pale">{course?`${(session?.slide_index||0)+1} / ${course.slides.length}`:"自由问答"}</span></div>
             <div className="teaching-scene"><div className="lecture-composition"><div className="presenter"><Avatar video={video} url={avatar?.url} kind={avatar?.kind} speaking={speaking} gesture={session?.state==='ANSWERING'?'think':slide?.gesture||'idle'}/><div className="presenter-name">{teacher.name==='数学老师 · 卡通'?'数学马老师':teacher.name}{teacher.name!=='数学老师 · 卡通'&&<small>{teacher.subject||'教师'}</small>}</div></div>{slide&&<LessonBoard slide={slide} offset={boardOffset} all={voice==='silent'}/>}</div>
             </div>
             {playbackBlocked&&<div className="playback-prompt" role="status"><span>声音和画面已准备好，手机浏览器需要你点击后播放。</span><button className="primary" onClick={()=>speaker.current.resume()}>点击播放老师声音与动画</button></div>}<div className="stage-controls"><button className="icon-btn" title="上一页" aria-label="上一页" disabled={busy||!course||!session||session.state==='FINISHED'} onClick={()=>void run(()=>flip('previous'))}><ChevronLeft/></button>
-              <button className="primary play-button" disabled={(!course||busy)&&session?.state!=='ANSWERING'} onClick={()=>void run(async()=>{if(speaking||session?.state==='LECTURING'||session?.state==='ANSWERING')await pause();else await start();})}>{speaking||session?.state==='LECTURING'||session?.state==='ANSWERING'?<><Pause size={16}/>暂停</>:<><Play size={16}/>{session?.state==='PAUSED'?'继续讲课':session?.state==='FINISHED'?'重新开始':'开始讲课'}</>}</button>
+              <button className="primary play-button" disabled={(!course||busy)&&session?.state!=='ANSWERING'&&session?.state!=='LECTURING'} onClick={()=>void run(async()=>{if(speaking||session?.state==='LECTURING'||session?.state==='ANSWERING')await pause();else await start();})}>{speaking||session?.state==='LECTURING'||session?.state==='ANSWERING'?<><Pause size={16}/>暂停</>:<><Play size={16}/>{session?.state==='PAUSED'?'继续讲课':session?.state==='FINISHED'?'重新开始':'开始讲课'}</>}</button>
               <button className="icon-btn" title="下一页" aria-label="下一页" disabled={busy||!course||session?.state==='FINISHED'} onClick={()=>void run(()=>flip('next'))}><ChevronRight/></button>
             </div>
           </div>

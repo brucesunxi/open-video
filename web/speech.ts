@@ -1,3 +1,4 @@
+export type ReadyPage={url:string;duration:number;segments:{start:number;duration:number;offset:number;length:number}[]};
 // Prefer punctuation and linguistic word boundaries; never cut by a fixed character count.
 export function speechChunks(text:string,continuous=false):string[]{
   let remaining=text.trim();const chunks:string[]=[];
@@ -51,6 +52,14 @@ export async function* speechMedia(response:Response):AsyncGenerator<Blob>{
 // One audio owner for both classroom narration and Q&A. Generation guards defeat late callbacks.
 export class Speaker {
   private generation=0;
+  private preloaded=new Map<string,HTMLVideoElement>();
+  preload(url:string){
+    if(this.preloaded.has(url)||this.url===url)return;
+    const video=document.createElement('video');video.playsInline=true;video.preload='auto';video.src=url;video.load();
+    this.preloaded.set(url,video);
+    while(this.preloaded.size>2){const key=this.preloaded.keys().next().value!;const old=this.preloaded.get(key)!;old.src='';old.load();this.preloaded.delete(key);}
+  }
+
   private audio:HTMLMediaElement|null=null;
   private abort:AbortController|null=null;
   private url:string|null=null;
@@ -69,7 +78,7 @@ export class Speaker {
     if(this.url){URL.revokeObjectURL(this.url);this.url=null;}
     window.speechSynthesis?.cancel();this.speaking=false;this.onChange(false);
   }
-  async play(text:string, teacherId:string, mode:string, ended:()=>void, error:(e:Error)=>void,continuous=false){
+  async play(text:string, teacherId:string, mode:string, ended:()=>void, error:(e:Error)=>void,continuous=false,ready?:ReadyPage){
     this.stop();const generation=this.generation;
     if(continuous)this.onProgress(text,0);
     const finish=()=>{
@@ -98,19 +107,24 @@ export class Speaker {
     const prepared=new Set<{media:HTMLMediaElement;url:string}>();
     const dispose=(item:{media:HTMLMediaElement;url:string})=>{item.media.onended=null;item.media.onerror=null;item.media.ontimeupdate=null;item.media.pause();item.media.src='';URL.revokeObjectURL(item.url);prepared.delete(item);};
     try{
-      const chunks=speechChunks(text,continuous);if(!chunks.length){finish();return;}
+      const chunks=ready?[text]:speechChunks(text,continuous);if(!chunks.length){finish();return;}
       this.onWaiting();
+      if(!ready){
       const response=await fetch('/api/speech/stream',{method:'POST',headers:{'Content-Type':'application/json'},
         body:JSON.stringify({teacher_id:teacherId,chunks,animate:true}),signal:AbortSignal.any([signal,AbortSignal.timeout(900000)])});
       stream=speechMedia(response);
+      }
       const next=async()=>{try{
-        const result=await stream!.next();if(result.done)return result;
+        const result=ready?{done:false as const,value:null}:await stream!.next();if(result.done)return result;
         if(signal.aborted)return {done:true as const,value:undefined};
-        const isVideo=result.value.type.startsWith('video/');
-        const media=isVideo?document.createElement('video'):new Audio();
-        const item={media,url:URL.createObjectURL(result.value)};prepared.add(item);
+        const isVideo=Boolean(ready)||result.value!.type.startsWith('video/');
+        const reused=Boolean(ready&&this.preloaded.has(ready.url));
+        if(ready)this.url=ready.url;
+        const media=ready?(this.preloaded.get(ready.url)||document.createElement('video')):isVideo?document.createElement('video'):new Audio();
+        if(ready)this.preloaded.delete(ready.url);
+        const item={media,url:ready?.url||URL.createObjectURL(result.value!)};prepared.add(item);
         if(isVideo)(media as HTMLVideoElement).playsInline=true;
-        media.preload='auto';media.src=item.url;
+        media.preload='auto';if(media.getAttribute?.('src')!==item.url)media.src=item.url;
         // Decode the next clip while the current one is playing.
         await new Promise<void>((resolve,reject)=>{
           if(media.readyState>=2){resolve();return;}
@@ -119,7 +133,7 @@ export class Speaker {
           const cancel=()=>{cleanup();reject(new DOMException('aborted','AbortError'));};
           const timer=setTimeout(bad,30000);
           media.addEventListener('loadeddata',ready,{once:true});media.addEventListener('error',bad,{once:true});signal.addEventListener('abort',cancel,{once:true});
-          if(signal.aborted)cancel();else media.load();
+          if(signal.aborted)cancel();else if(!reused)media.load();
         });
         return {done:false as const,value:{...item,isVideo}};
       }catch(e){return {error:e as Error};}};
@@ -131,7 +145,11 @@ export class Speaker {
         if(i+1<chunks.length)pending=next();
         const item=result.value,audio=item.media;this.url=item.url;this.audio=audio;
         const prefix=chunks.slice(0,i).join('').length;
-        const progress=()=>{if(continuous&&generation===this.generation&&Number.isFinite(audio.duration)&&audio.duration>0)this.onProgress(text,prefix+Math.floor(chunks[i].length*Math.min(1,audio.currentTime/audio.duration)));};
+        const progress=()=>{if(continuous&&generation===this.generation&&Number.isFinite(audio.duration)&&audio.duration>0){
+          const segment=ready?.segments.slice().reverse().find(s=>audio.currentTime>=s.start);
+          const offset=segment?segment.offset+Math.floor(segment.length*Math.min(1,(audio.currentTime-segment.start)/segment.duration)):prefix+Math.floor(chunks[i].length*Math.min(1,audio.currentTime/audio.duration));
+          this.onProgress(text,offset);
+        }};
         audio.ontimeupdate=progress;
         await new Promise<void>((resolve,reject)=>{
           const release=()=>{this.resumePlayback=null;this.onPlaybackBlocked(false);signal.removeEventListener('abort',cancel);};
