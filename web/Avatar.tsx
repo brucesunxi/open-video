@@ -1,12 +1,15 @@
 import {useEffect,useLayoutEffect,useRef,useState} from 'react';
+import schoolEmblem from './assets/xinghe-school-emblem.jpg';
 import * as THREE from 'three';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {VRMLoaderPlugin,VRMUtils,type VRM} from '@pixiv/three-vrm';
 
+function SchoolEmblem(){return <span className="school-emblem" role="img" aria-label="星河实验小学校徽" style={{backgroundImage:`url(${schoolEmblem})`}}/>;}
+
 export function Avatar({url,kind,speaking,gesture,video}:{url?:string;kind?:string;speaking:boolean;gesture:string;video?:HTMLVideoElement|null}){
   if(video)return <PortraitVideo video={video}/>;
   if(kind==='vrm' && url)return <VRMView url={url} speaking={speaking} gesture={gesture}/>;
-  if(kind==='image' && url)return <div className="photo-avatar"><img src={url} alt="老师参考形象"/><span>老师参考形象</span></div>;
+  if(kind==='image' && url)return <div className="photo-avatar"><img src={url} alt="老师参考形象"/><span>老师参考形象</span><SchoolEmblem/></div>;
   return <div className={`demo-avatar ${speaking?'talking':''} gesture-${gesture}`}>
     <svg viewBox="0 0 320 340" role="img" aria-label="本地演示角色，不是真实教师形象">
       <ellipse cx="160" cy="315" rx="95" ry="13" fill="#d4dfcd"/>
@@ -69,5 +72,5 @@ function VRMView({url,speaking,gesture}:{url:string;speaking:boolean;gesture:str
 function PortraitVideo({video}:{video:HTMLVideoElement}){
  const host=useRef<HTMLDivElement>(null);
  useLayoutEffect(()=>{const node=host.current!;node.replaceChildren(video);return()=>{if(video.parentNode===node)node.removeChild(video);};},[video]);
- return <div className="portrait-video" ref={host} aria-label="老师说话动画"/>;
+ return <div className="portrait-video" aria-label="老师说话动画"><div className="portrait-media" ref={host}/><SchoolEmblem/></div>;
 }
