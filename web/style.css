@@ -134,3 +134,10 @@
 .realtime-credit{text-align:right;margin:10px 2px 0;padding-right:4px;line-height:1.6;}
 .lesson-board footer.company-signature{font-weight:700;font-style:italic;}
 @media(max-width:650px){.realtime-credit{font-size:11px;letter-spacing:.2px;margin-top:8px;}}
+
+.realtime-controls .realtime-credit{margin:0 0 0 auto;max-width:100%;padding:0 2px;align-self:center;}
+@media(max-width:650px){
+ .realtime-stage .realtime-controls{display:grid;grid-template-columns:1fr 1fr minmax(80px,.9fr);gap:6px;align-items:center;}
+ .realtime-stage .realtime-controls button{font-size:11px;padding:10px 3px;gap:3px;min-height:44px;}
+ .realtime-controls .realtime-credit{font-size:10px;letter-spacing:0;line-height:1.6;margin:0;overflow-wrap:anywhere;text-align:right;}
+}
