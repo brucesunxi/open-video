@@ -9,7 +9,7 @@ function SchoolEmblem(){return <span className="school-emblem" role="img" aria-l
 export function Avatar({url,kind,speaking,gesture,video}:{url?:string;kind?:string;speaking:boolean;gesture:string;video?:HTMLVideoElement|null}){
   if(video)return <PortraitVideo video={video}/>;
   if(kind==='vrm' && url)return <VRMView url={url} speaking={speaking} gesture={gesture}/>;
-  if(kind==='image' && url)return <div className="photo-avatar"><img src={url} alt="老师参考形象"/><span>老师参考形象</span><SchoolEmblem/></div>;
+  if(kind==='image' && url)return <div className="photo-avatar"><img src={url} alt="老师参考形象"/><SchoolEmblem/></div>;
   return <div className={`demo-avatar ${speaking?'talking':''} gesture-${gesture}`}>
     <svg viewBox="0 0 320 340" role="img" aria-label="本地演示角色，不是真实教师形象">
       <ellipse cx="160" cy="315" rx="95" ry="13" fill="#d4dfcd"/>
