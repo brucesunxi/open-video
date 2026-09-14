@@ -56,6 +56,7 @@ class Slide(BaseModel):
     title: str = Field(min_length=1, max_length=60)
     bullets: list[str] = Field(min_length=1, max_length=5)
     narration: str = Field(min_length=1, max_length=2000)
+    board_anchors: list[str] = Field(default_factory=list, max_length=5)
     source_ids: list[str] = Field(min_length=1)
     gesture: Literal['explain', 'nod', 'encourage', 'think', 'listen', 'idle'] = 'explain'
 

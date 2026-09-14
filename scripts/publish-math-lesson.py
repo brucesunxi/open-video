@@ -1,7 +1,8 @@
-"""Publish the reviewed grade-five demo through the app API on the demo host.
+"""Publish a reviewed lesson JSON through the app API on the demo host.
 
 Preserves selected teacher media and existing courses. Re-running reuses the
-same published lesson. Credentials come only from the server environment.
+same published lesson. Optional first argument selects the lesson JSON.
+Credentials come only from the server environment.
 """
 import json
 import sys
@@ -15,7 +16,7 @@ load_dotenv(app / '.env')
 sys.path.insert(0, str(app))
 from server.auth import COOKIE, make_session
 
-lesson = json.loads((app / 'lessons/grade5-fraction-addition.json').read_text())
+lesson = json.loads((app / (sys.argv[1] if len(sys.argv) > 1 else 'lessons/grade5-fraction-addition.json')).read_text())
 with httpx.Client(base_url='http://127.0.0.1:8010', trust_env=False,
                   cookies={COOKIE: make_session()}, timeout=60) as client:
     def request(method, path, **kwargs):
@@ -31,8 +32,9 @@ with httpx.Client(base_url='http://127.0.0.1:8010', trust_env=False,
     tid = teacher['id']
     profile = {key: teacher[key] for key in
                ('name', 'subject', 'bio', 'style', 'voice_profile_id', 'avatar_asset_id', 'consent')}
-    profile.update(subject=lesson['subject'], style=lesson['style'])
-    request('PUT', f'/teachers/{tid}', json=profile)
+    if 'style' in lesson:
+        profile.update(subject=lesson['subject'], style=lesson['style'])
+        request('PUT', f'/teachers/{tid}', json=profile)
     courses = request('GET', f'/teachers/{tid}/courses')
     existing = next((c for c in courses if c['title'] == lesson['title'] and c['status'] == 'published'), None)
     if existing:
@@ -60,6 +62,7 @@ with httpx.Client(base_url='http://127.0.0.1:8010', trust_env=False,
     current = next(t for t in request('GET', '/teachers') if t['id'] == tid)
     assert current['avatar_asset_id'] == teacher['avatar_asset_id']
     assert current['voice_profile_id'] == teacher['voice_profile_id']
-    assert published['slides'] == slides
+    assert all(all(actual.get(k) == v for k, v in expected.items())
+               for actual, expected in zip(published['slides'], slides))
     print(json.dumps({'teacher': tid, 'course_id': course['id'], 'title': published['title'],
                       'pages': len(slides), 'status': published['status'], 'media_preserved': True}, ensure_ascii=False))

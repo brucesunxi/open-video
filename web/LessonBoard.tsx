@@ -10,7 +10,7 @@ const anchors:Record<string,string[]>={
  '换一道题，你来迁移':['四分之一加','四和六','四分之一变成','现在请你'],
  '带着一个道理走出去':['六分之一加','二分之一加四分之一','不必','今天我们']
 };
-export function boardOffsets(slide:Slide){return slide.bullets.map((_,i)=>{const anchor=anchors[slide.title]?.[i];const offset=anchor?slide.narration.indexOf(anchor):-1;return offset>=0?offset:Math.floor(slide.narration.length*i/slide.bullets.length);});}
+export function boardOffsets(slide:Slide){return slide.bullets.map((_,i)=>{const anchor=slide.board_anchors?.[i] || anchors[slide.title]?.[i];const offset=anchor?slide.narration.indexOf(anchor):-1;return offset>=0?offset:Math.floor(slide.narration.length*i/slide.bullets.length);});}
 function Maths({text}:{text:string}){return <>{text.split(/(\d+\/\d+)/g).map((part,i)=>/^\d+\/\d+$/.test(part)?<span className="board-fraction" key={i} aria-label={part}><span>{part.split('/')[0]}</span><span>{part.split('/')[1]}</span></span>:<span key={i}>{part}</span>)}</>;}
 export function LessonBoard({slide,offset,all=false}:{slide:Slide;offset:number;all?:boolean}){
  const offsets=boardOffsets(slide);const visible=offsets.map(o=>all||offset>=o);const active=offsets.reduce((best,o,i)=>visible[i]&&(best<0||o>=offsets[best])?i:best,-1);

@@ -1,7 +1,7 @@
 export type Teacher={id:string; name:string;subject:string;bio:string;style:string;voice_profile_id:string;avatar_asset_id:string;consent:boolean};
 export type Source={id:string;text:string;title:string;document_id:string;page:number|null;section:number;version:number};
 export type Knowledge={id:string;title:string;approved:boolean;teacher_id:string;chunks:Source[];version:number};
-export type Slide={id:string;title:string;bullets:string[];narration:string;source_ids:string[];gesture:string};
+export type Slide={id:string;title:string;bullets:string[];board_anchors?:string[];narration:string;source_ids:string[];gesture:string};
 export type Course={id:string;title:string;version:number;status:string;slides:Slide[];sources:Source[];teacher_id:string};
 export type Message={role:string;text:string;sources?:Source[];mode?:string};
 export type Session={id:string;teacher_id:string;course_id:string|null;state:string;revision:number;slide_index:number;messages:Message[]};
