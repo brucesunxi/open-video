@@ -80,3 +80,11 @@ assert.equal(audios.length,1,'reuse the preloaded native video');
 preloaded.duration=20;preloaded.currentTime=12;preloaded.ontimeupdate();assert.equal(progress.at(-1),12);
 preloaded.onended();await preparedPlay;assert.equal(failed,0);
 console.log('PASS: prepared course URL playback, preload reuse and original clip board timing');
+// iOS can ignore load()/preload altogether until the user asks to play.
+audios=[];let playCalls=0;
+globalThis.Audio=class extends EventTarget{constructor(){super();this.readyState=0;audios.push(this);}load(){}play(){playCalls++;this.readyState=2;return Promise.resolve();}pause(){}};
+speaker.preload('/mobile-preload-blocked.mp4');
+const lazyPlay=speaker.play('你好。','teacher','gpu',()=>ended++,()=>failed++,true,{...ready,url:'/mobile-preload-blocked.mp4'});
+await until(()=>speaker.speaking);assert.equal(playCalls,1,'call play without waiting for ignored mobile preload');
+audios[0].onended();await lazyPlay;assert.equal(failed,0);
+console.log('PASS: mobile cached video starts even when preload never fires loadeddata');

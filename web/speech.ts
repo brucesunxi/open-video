@@ -125,8 +125,9 @@ export class Speaker {
         const item={media,url:ready?.url||URL.createObjectURL(result.value!)};prepared.add(item);
         if(isVideo)(media as HTMLVideoElement).playsInline=true;
         media.preload='auto';if(media.getAttribute?.('src')!==item.url)media.src=item.url;
-        // Decode the next clip while the current one is playing.
-        await new Promise<void>((resolve,reject)=>{
+        // Mobile browsers may refuse preload until play() is requested.
+        // Prepared URLs must reach play() immediately, without waiting for loadeddata.
+        if(!ready)await new Promise<void>((resolve,reject)=>{
           if(media.readyState>=2){resolve();return;}
           const cleanup=()=>{clearTimeout(timer);media.removeEventListener('loadeddata',ready);media.removeEventListener('error',bad);signal.removeEventListener('abort',cancel);};
           const ready=()=>{cleanup();resolve();};const bad=()=>{cleanup();reject(new Error('下一段声音或画面加载失败。'));};
@@ -152,7 +153,8 @@ export class Speaker {
         }};
         audio.ontimeupdate=progress;
         await new Promise<void>((resolve,reject)=>{
-          const release=()=>{this.resumePlayback=null;this.onPlaybackBlocked(false);signal.removeEventListener('abort',cancel);};
+          let startTimer:ReturnType<typeof setTimeout>|undefined;
+          const release=()=>{clearTimeout(startTimer);this.resumePlayback=null;this.onPlaybackBlocked(false);signal.removeEventListener('abort',cancel);};
           const cancel=()=>{release();resolve();};signal.addEventListener('abort',cancel,{once:true});
           audio.onended=()=>{release();resolve();};
           audio.onerror=()=>{release();reject(new Error('音频播放失败。'));};
@@ -160,14 +162,15 @@ export class Speaker {
           const attempt=()=>{
             if(starting||generation!==this.generation)return;starting=true;
             // Called synchronously by the button, preserving the browser gesture.
+            startTimer=setTimeout(()=>{release();reject(new Error('视频加载时间较长，请暂停后重试，或切换网络。'));},30000);
             audio.play().then(()=>{
-              starting=false;if(generation!==this.generation)return;
+              clearTimeout(startTimer);starting=false;if(generation!==this.generation)return;
               // The old frame remains visible until the new clip is decoded and playing.
               this.onVideo(item.isVideo?audio as HTMLVideoElement:null);
               if(previous)dispose(previous);previous=item;
               this.resumePlayback=null;this.onPlaybackBlocked(false);this.speaking=true;this.onChange(true);
             }).catch(e=>{
-              starting=false;if(generation!==this.generation)return;
+              clearTimeout(startTimer);starting=false;if(generation!==this.generation)return;
               if(e?.name==='NotAllowedError'){this.resumePlayback=attempt;this.onPlaybackBlocked(true);}
               else{release();reject(e);}
             });
