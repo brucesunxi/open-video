@@ -125,17 +125,9 @@ export class Speaker {
         const item={media,url:ready?.url||URL.createObjectURL(result.value!)};prepared.add(item);
         if(isVideo)(media as HTMLVideoElement).playsInline=true;
         media.preload='auto';if(media.getAttribute?.('src')!==item.url)media.src=item.url;
-        // Mobile browsers may refuse preload until play() is requested.
-        // Prepared URLs must reach play() immediately, without waiting for loadeddata.
-        if(!ready)await new Promise<void>((resolve,reject)=>{
-          if(media.readyState>=2){resolve();return;}
-          const cleanup=()=>{clearTimeout(timer);media.removeEventListener('loadeddata',ready);media.removeEventListener('error',bad);signal.removeEventListener('abort',cancel);};
-          const ready=()=>{cleanup();resolve();};const bad=()=>{cleanup();reject(new Error('下一段声音或画面加载失败。'));};
-          const cancel=()=>{cleanup();reject(new DOMException('aborted','AbortError'));};
-          const timer=setTimeout(bad,30000);
-          media.addEventListener('loadeddata',ready,{once:true});media.addEventListener('error',bad,{once:true});signal.addEventListener('abort',cancel,{once:true});
-          if(signal.aborted)cancel();else if(!reused)media.load();
-        });
+        // Start decoding opportunistically, but never gate play() on loadeddata.
+        // Mobile browsers can ignore preload for both remote URLs and blob videos.
+        if(!reused)media.load();
         return {done:false as const,value:{...item,isVideo}};
       }catch(e){return {error:e as Error};}};
       let pending=next(),previous:{media:HTMLMediaElement;url:string}|null=null;

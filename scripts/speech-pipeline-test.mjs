@@ -88,3 +88,10 @@ const lazyPlay=speaker.play('你好。','teacher','gpu',()=>ended++,()=>failed++
 await until(()=>speaker.speaking);assert.equal(playCalls,1,'call play without waiting for ignored mobile preload');
 audios[0].onended();await lazyPlay;assert.equal(failed,0);
 console.log('PASS: mobile cached video starts even when preload never fires loadeddata');
+// The same mobile restriction also applies to synthesized blob replies.
+audios=[];playCalls=0;
+const blobReply=speaker.play('你好。','teacher','gpu',()=>ended++,()=>failed++);
+await until(()=>controller);controller.enqueue(encoder.encode(event(0)));controller.enqueue(encoder.encode('data: {"done":true}\n\n'));controller.close();
+await until(()=>speaker.speaking);assert.equal(playCalls,1,'streamed reply must not wait on loadeddata');
+audios[0].onended();await blobReply;assert.equal(failed,0);
+console.log('PASS: real-time blob video also plays with preload disabled');
