@@ -173,3 +173,4 @@
 .standing-conversation .photo-avatar,.standing-conversation .portrait-video{aspect-ratio:16/9;background:#25483b}
 .standing-conversation .photo-avatar img,.standing-conversation .portrait-video video{object-fit:contain;object-position:center}
 .standing-scene .embedded-board header{padding-left:4cqw}
+.standing-scene .photo-avatar .school-emblem,.standing-scene .portrait-video .school-emblem{inset:1.5cqw auto auto 1.5cqw;width:4cqw;min-width:16px}
