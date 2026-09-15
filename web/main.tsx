@@ -52,9 +52,9 @@ function App(){
     return()=>{cancelled=true;clearTimeout(timer);};
   },[course?.id,teacher?.voice_profile_id,teacher?.avatar_asset_id,clonedVoiceReady]);
   useEffect(()=>{
-    if(voice!=='gpu')return;
+    if(voice!=='gpu'||classMode!=='lesson'){speaker.current.clearPreloads();return;}
     for(const page of readyPages.slice(session?.slide_index||0,(session?.slide_index||0)+(speaking?2:1)))if(page)speaker.current.preload(page.url);
-  },[readyPages,session?.slide_index||0,voice,speaking]);
+  },[readyPages,session?.slide_index||0,voice,speaking,classMode]);
   useEffect(()=>setBoardOffset(-1),[slide?.id,teacherId]);
   speaker.current.onProgress=(text,offset)=>{if(text===slide?.narration)setBoardOffset(offset);};
   current.current=session;

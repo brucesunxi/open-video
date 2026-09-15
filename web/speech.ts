@@ -60,6 +60,8 @@ export class Speaker {
     while(this.preloaded.size>2){const key=this.preloaded.keys().next().value!;const old=this.preloaded.get(key)!;old.src='';old.load();this.preloaded.delete(key);}
   }
 
+  clearPreloads(){for(const video of this.preloaded.values()){video.src='';video.load();}this.preloaded.clear();}
+
   private audio:HTMLMediaElement|null=null;
   private abort:AbortController|null=null;
   private url:string|null=null;
