@@ -47,3 +47,15 @@ def compose_frame(frame,layout):
     alpha=mask[y1-y:y2-y,x1-x:x2-x]
     result[y1:y2,x1:x2]=np.clip(face*alpha+result[y1:y2,x1:x2]*(1-alpha),0,255).astype(np.uint8)
     return np.ascontiguousarray(result)
+
+
+def reference_face_box(raw, size):
+    """Map the validated original face into reference_crop coordinates without redetection."""
+    image=ImageOps.exif_transpose(Image.open(io.BytesIO(raw))).convert('RGB')
+    image.thumbnail((1400,1400))
+    detector=cv2.CascadeClassifier(cv2.data.haarcascades+'haarcascade_frontalface_default.xml')
+    faces=detector.detectMultiScale(cv2.cvtColor(np.array(image),cv2.COLOR_RGB2GRAY),1.1,5,minSize=(55,55))
+    if len(faces)!=1:raise ValueError('需要清晰单人正面形象')
+    x,y,w,h=map(int,faces[0]);side=int(max(w,h)*2.0)
+    left=int(x+w/2-side/2);top=int(y+h*.55-side/2)
+    return tuple(round(v*size/side) for v in (x-left,y-top,w,h))

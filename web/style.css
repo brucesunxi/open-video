@@ -144,3 +144,32 @@
 
 .lesson-credit{text-align:right;padding:0 22px 14px;line-height:1.6;}
 @media(max-width:650px){.lesson-credit{font-size:10px;letter-spacing:0;padding:0 14px 10px;}}
+
+/* Quiet chalkboard preview before the first narrated point appears. */
+.board-preview{flex:1;display:flex;flex-direction:column;justify-content:center;gap:clamp(14px,1.6cqw,26px);padding:1cqw 0;}
+.board-preview-label{color:#d9c67f;font-size:clamp(12px,1.2cqw,17px);letter-spacing:.12em;}
+.board-preview ol{list-style:none;margin:0;padding:0;display:grid;gap:clamp(12px,1.5cqw,24px);}
+.board-preview li{display:flex;align-items:baseline;gap:clamp(12px,1.4cqw,22px);padding-left:12px;border-left:2px solid #d9c67f55;}
+.preview-index{color:#b5c9b9;font-size:clamp(11px,1cqw,15px);font-variant-numeric:tabular-nums;}
+.board-preview li p,.preview-empty{margin:0;color:#edf1df;font-size:clamp(16px,1.7cqw,25px);line-height:1.65;overflow-wrap:anywhere;}
+.board-preview-hint{color:#b6cbbb;font-size:clamp(11px,1.1cqw,16px);padding-top:4px;}
+@media(max-width:650px){.board-preview{gap:12px;padding:4px 0;}.board-preview ol{gap:10px;}.board-preview li{padding-left:9px;gap:10px;}.board-preview li p{font-size:16px;line-height:1.5;}.board-preview-hint{font-size:11px;}}
+
+.lecture-composition .standing-presenter .photo-avatar img,.lecture-composition .standing-presenter .portrait-video video{object-fit:contain;object-position:center;}
+.lecture-composition .standing-presenter .photo-avatar,.lecture-composition .standing-presenter .portrait-video{background:#25483b;}
+/* Standing scene: write over the chalk title, preserving the teacher on the right. */
+.lesson-focus .lecture-composition.standing-scene{display:block;position:relative;aspect-ratio:16/9;border:0;container-type:inline-size;background:#25483b}
+.lesson-focus .standing-scene .standing-presenter{position:absolute;inset:0;width:100%;height:100%;aspect-ratio:auto}
+.lesson-focus .standing-scene .presenter-name{left:50%;font-size:clamp(10px,1.4cqw,18px);padding:1cqw;background:transparent;text-shadow:0 1px 4px #152f27}
+.standing-scene .lesson-board.embedded-board{position:absolute;inset:4% auto 5% 2%;width:47%;min-height:0;padding:2cqw;background:#25483b;border-radius:1cqw;overflow:auto;overscroll-behavior:contain;scrollbar-width:thin;display:block}
+.standing-scene .embedded-board header{height:auto;padding:0;background:none;border:0;font-size:1.3cqw}
+.standing-scene .embedded-board h2{font-size:2.5cqw;margin:1.5cqw 0;padding-bottom:1cqw;line-height:1.35}
+.standing-scene .embedded-board .board-writing{display:flex;gap:1cqw;justify-content:flex-start}
+.standing-scene .embedded-board .board-line{display:none;padding:.6cqw;gap:.7cqw;flex-shrink:0}
+.standing-scene .embedded-board .board-line.written{display:flex}
+.standing-scene .embedded-board .board-line p{font-size:2.1cqw;line-height:1.5}
+.standing-scene .embedded-board .board-number{font-size:1.5cqw}
+/* The conversation keeps the original chalkboard title throughout playback. */
+.standing-conversation .photo-avatar,.standing-conversation .portrait-video{aspect-ratio:16/9;background:#25483b}
+.standing-conversation .photo-avatar img,.standing-conversation .portrait-video video{object-fit:contain;object-position:center}
+.standing-scene .embedded-board header{padding-left:4cqw}

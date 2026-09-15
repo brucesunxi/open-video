@@ -1,3 +1,4 @@
+import {useEffect,useRef} from 'react';
 import type {Slide} from './types';
 // Anchors refer to the unchanged narration, never to elapsed wall-clock time.
 const anchors:Record<string,string[]>={
@@ -12,7 +13,11 @@ const anchors:Record<string,string[]>={
 };
 export function boardOffsets(slide:Slide){return slide.bullets.map((_,i)=>{const anchor=slide.board_anchors?.[i] || anchors[slide.title]?.[i];const offset=anchor?slide.narration.indexOf(anchor):-1;return offset>=0?offset:Math.floor(slide.narration.length*i/slide.bullets.length);});}
 function Maths({text}:{text:string}){return <>{text.split(/(\d+\/\d+)/g).map((part,i)=>/^\d+\/\d+$/.test(part)?<span className="board-fraction" key={i} aria-label={part}><span>{part.split('/')[0]}</span><span>{part.split('/')[1]}</span></span>:<span key={i}>{part}</span>)}</>;}
-export function LessonBoard({slide,offset,all=false}:{slide:Slide;offset:number;all?:boolean}){
+export function LessonBoard({slide,offset,all=false,embedded=false}:{slide:Slide;offset:number;all?:boolean;embedded?:boolean}){
  const offsets=boardOffsets(slide);const visible=offsets.map(o=>all||offset>=o);const active=offsets.reduce((best,o,i)=>visible[i]&&(best<0||o>=offsets[best])?i:best,-1);
- return <section className="lesson-board" aria-label="同步课堂板书"><header><span>随讲板书</span><span>想一想 · 说理由</span></header><h2>{slide.title}</h2><div className="board-writing">{slide.bullets.map((b,i)=><div key={i} className={`board-line ${visible[i]?'written':''} ${active===i?'current':''}`} aria-hidden={!visible[i]}><span className="board-number">{i+1}</span><p><Maths text={b}/></p></div>)}</div></section>;
+ const board=useRef<HTMLElement>(null);
+ useEffect(()=>{if(!embedded||!board.current)return;const line=board.current.querySelector<HTMLElement>('.board-line.current');if(line)board.current.scrollTop=Math.max(0,line.offsetTop-board.current.offsetTop-board.current.clientHeight+line.offsetHeight+16);},[active,embedded,slide.id]);
+ const preview=!all&&!visible.some(Boolean);
+ const previewPoints=slide.bullets.filter(b=>b.trim()).slice(0,3);
+ return <section ref={board} className={`lesson-board ${embedded?'embedded-board':''}`} aria-label="同步课堂板书"><header><span>随讲板书</span><span>想一想 · 说理由</span></header><h2>{slide.title}</h2>{preview?<div className="board-preview"><div className="board-preview-label">这一页，先看一看</div>{previewPoints.length?<ol>{previewPoints.map((text,i)=><li key={i}><span className="preview-index">0{i+1}</span><p><Maths text={text}/></p></li>)}</ol>:<p className="preview-empty">带着好奇，听老师讲一讲。</p>}<div className="board-preview-hint">带着问题开始 · 跟着老师一起想</div></div>:<div className="board-writing">{slide.bullets.map((b,i)=><div key={i} className={`board-line ${visible[i]?'written':''} ${active===i?'current':''}`} aria-hidden={!visible[i]}><span className="board-number">{i+1}</span><p><Maths text={b}/></p></div>)}</div>}</section>;
 }

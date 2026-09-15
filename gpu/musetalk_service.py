@@ -15,7 +15,7 @@ import imageio_ffmpeg
 from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.responses import Response
 import avatar_service as portrait
-from landscape import prepare_layout, compose_frame, reference_crop
+from landscape import prepare_layout, compose_frame, reference_crop, reference_face_box
 from identity_detail import retain_reference
 
 sys.path.insert(0, os.environ.get('MUSETALK_REPO', '/workspace/teacher-deploy/avatar/MuseTalk'))
@@ -89,12 +89,16 @@ def prepare(raw):
         frames.append(np.ascontiguousarray(model.parse_output(out)[0]))
     detector=cv2.CascadeClassifier(cv2.data.haarcascades+'haarcascade_frontalface_default.xml')
     faces=detector.detectMultiScale(cv2.cvtColor(frames[0],cv2.COLOR_RGB2GRAY),1.1,5,minSize=(65,65))
+    source=reference_crop(raw,frames[0].shape[0])
+    if len(faces)!=1:
+        # A blink in the generated template can hide a valid frontal face.
+        # The source crop has the same coordinates and preserves open eyes.
+        faces=[reference_face_box(raw,frames[0].shape[0])]
     if len(faces)!=1:raise HTTPException(400,'未能定位动画中的嘴部，请使用单人正面照片。')
     x,y,w,h=map(int,faces[0]);size=frames[0].shape[0]
     # A stable face box avoids detector jitter across adjacent generated frames.
     box=(max(0,x),max(0,int(y+h*.03)),min(size,x+w),min(size,int(y+h*1.05)))
     x1,y1,x2,y2=box
-    source=reference_crop(raw,frames[0].shape[0])
     frames=[retain_reference(frame,source,box) for frame in frames]
     latents=[]
     for frame in frames:

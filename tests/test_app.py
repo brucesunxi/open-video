@@ -315,6 +315,25 @@ def test_prepare_course_media_matches_course_and_reuses_cache(client, monkeypatc
     assert partial.status_code == 206 and partial.content == b'mo'
     assert 'private' in partial.headers['cache-control']
     assert len(calls) == count, 'direct playback must never invoke synthesis'
+    standing=client.post(f"/api/teachers/{t['id']}/assets",data={'kind':'image'},files={'file':('站姿讲课.png',b'standing-image','image/png')}).json()
+    variant_plan={**plan,'avatar_asset_id':standing['id']}
+    variant=client.post(endpoint,json=variant_plan).json()
+    for _ in range(100):
+        state=client.get('/api/media-jobs/'+variant['id']).json()
+        if state['status'] not in ('queued','preparing'):break
+        time.sleep(.02)
+    assert state['status']=='ready',state
+    unchanged=client.get('/api/teachers').json()[0]
+    assert unchanged['avatar_asset_id']==image['id'], 'background preparation must not change active image'
+    assert unchanged['voice_profile_id']=='voice'
+    assert client.get(f"/api/courses/{c['id']}/playback").json()['signature']==playback['signature']
+    client.put(f"/api/teachers/{t['id']}",json={**unchanged,'avatar_asset_id':standing['id']})
+    variant_playback=client.get(f"/api/courses/{c['id']}/playback").json()
+    assert variant_playback['ready'] and variant_playback['signature']!=playback['signature']
+    assert client.post(f"/api/courses/{c['id']}/media-status",json=variant_plan).json()['id']==variant['id']
+    other=client.post('/api/teachers',json={'name':'其他老师'}).json()
+    foreign=client.post(f"/api/teachers/{other['id']}/assets",data={'kind':'image'},files={'file':('other.png',b'other','image/png')}).json()
+    assert client.post(endpoint,json={**plan,'avatar_asset_id':foreign['id']}).status_code==400
     client.put(f"/api/teachers/{t['id']}",json={**t,'voice_profile_id':'different','avatar_asset_id':image['id']})
     assert not client.get(f"/api/courses/{c['id']}/playback").json()['ready']
     assert client.get(url).status_code == 404, 'old identity cannot be played after switching voice'
