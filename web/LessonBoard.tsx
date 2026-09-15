@@ -16,7 +16,17 @@ function Maths({text}:{text:string}){return <>{text.split(/(\d+\/\d+)/g).map((pa
 export function LessonBoard({slide,offset,all=false,embedded=false}:{slide:Slide;offset:number;all?:boolean;embedded?:boolean}){
  const offsets=boardOffsets(slide);const visible=offsets.map(o=>all||offset>=o);const active=offsets.reduce((best,o,i)=>visible[i]&&(best<0||o>=offsets[best])?i:best,-1);
  const board=useRef<HTMLElement>(null);
- useEffect(()=>{if(!embedded||!board.current)return;const line=board.current.querySelector<HTMLElement>('.board-line.current');if(line)board.current.scrollTop=Math.max(0,line.offsetTop-board.current.offsetTop-board.current.clientHeight+line.offsetHeight+16);},[active,embedded,slide.id]);
+ useEffect(()=>{
+  const node=board.current;if(!embedded||!node)return;
+  const update=()=>{const line=node.querySelector<HTMLElement>('.board-line.current');
+   if(!line||all){node.scrollTop=0;return;}
+   const bounds=node.getBoundingClientRect(),target=line.getBoundingClientRect();
+   if(target.bottom>bounds.bottom-8)node.scrollTop+=target.bottom-bounds.bottom+8;
+   else if(target.top<bounds.top+8)node.scrollTop-=bounds.top+8-target.top;
+  };
+  node.scrollTop=0;update();const resize=new ResizeObserver(update);resize.observe(node);
+  return ()=>resize.disconnect();
+ },[active,embedded,slide.id,all]);
  const preview=!all&&!visible.some(Boolean);
  const previewPoints=slide.bullets.filter(b=>b.trim()).slice(0,3);
  return <section ref={board} className={`lesson-board ${embedded?'embedded-board':''}`} aria-label="同步课堂板书"><header><span>随讲板书</span><span>想一想 · 说理由</span></header><h2>{slide.title}</h2>{preview?<div className="board-preview"><div className="board-preview-label">这一页，先看一看</div>{previewPoints.length?<ol>{previewPoints.map((text,i)=><li key={i}><span className="preview-index">0{i+1}</span><p><Maths text={text}/></p></li>)}</ol>:<p className="preview-empty">带着好奇，听老师讲一讲。</p>}<div className="board-preview-hint">带着问题开始 · 跟着老师一起想</div></div>:<div className="board-writing">{slide.bullets.map((b,i)=><div key={i} className={`board-line ${visible[i]?'written':''} ${active===i?'current':''}`} aria-hidden={!visible[i]}><span className="board-number">{i+1}</span><p><Maths text={b}/></p></div>)}</div>}</section>;

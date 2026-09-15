@@ -176,3 +176,15 @@
 /* Keep the crest in the empty upper-right corner, clear of chalk text and face. */
 .standing-scene .photo-avatar .school-emblem,.standing-scene .portrait-video .school-emblem,
 .standing-conversation .photo-avatar .school-emblem,.standing-conversation .portrait-video .school-emblem{inset:3% 2% auto auto;width:7%;min-width:0;max-width:60px}
+/* Embedded previews use the same proportional typography as spoken board lines. */
+.standing-scene .embedded-board .board-preview{display:flex;justify-content:flex-start;gap:1cqw;padding:.5cqw 0}
+.standing-scene .embedded-board .board-preview-label{font-size:1.5cqw;line-height:1.4;letter-spacing:.06em}
+.standing-scene .embedded-board .board-preview ol{gap:1cqw}
+.standing-scene .embedded-board .board-preview li{gap:.7cqw;padding-left:.6cqw;border-left-width:1px;align-items:baseline}
+.standing-scene .embedded-board .board-preview li p,.standing-scene .embedded-board .preview-empty{font-size:2.1cqw;line-height:1.5;min-width:0}
+.standing-scene .embedded-board .preview-index{font-size:1.5cqw;flex-shrink:0}
+.standing-scene .embedded-board .board-preview-hint{display:none}
+.standing-scene .embedded-board .board-line p{min-width:0;overflow-wrap:anywhere}
+@media(max-width:650px){
+ .standing-scene .embedded-board .board-line p,.standing-scene .embedded-board .board-preview li p,.standing-scene .embedded-board .preview-empty{font-size:2.6cqw}
+}
